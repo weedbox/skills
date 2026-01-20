@@ -10,6 +10,15 @@ Skills 是 Claude Code 的擴展功能，透過提供特定領域的知識和指
 
 ## 可用的 Skills
 
+### project-dev
+
+協助建立和規劃 Weedbox 專案結構，包含：
+
+- 專案結構設定
+- 應用程式入口點 (main.go) 與 Cobra CLI
+- 三階段模組載入 (modules.go)
+- 設定檔配置
+
 ### module-dev
 
 協助開發 Weedbox 框架模組，包含：
@@ -69,11 +78,14 @@ git clone https://github.com/weedbox/skills.git weedbox
 
 ```
 skills/
+├── SKILL.md                                  # 根技能索引
 ├── README.md
 ├── README.zh-TW.md
 ├── LICENSE
+├── project-dev/
+│   └── SKILL.md                              # 專案設定技能
 └── module-dev/
-    ├── SKILL.md                              # 技能主文件
+    ├── SKILL.md                              # 模組開發技能
     └── references/
         ├── METHOD1_MANUAL_FX.md              # 手動 FX 模組詳細說明
         └── METHOD2_WEEDBOX_GENERIC.md        # Weedbox 泛型模組詳細說明

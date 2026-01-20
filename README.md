@@ -10,6 +10,15 @@ Skills are extensions for Claude Code that provide domain-specific knowledge and
 
 ## Available Skills
 
+### project-dev
+
+Assists with creating and structuring Weedbox projects, including:
+
+- Project structure setup
+- Application entry point (main.go) with Cobra CLI
+- Three-phase module loading (modules.go)
+- Configuration file setup
+
 ### module-dev
 
 Assists with Weedbox framework module development, including:
@@ -69,11 +78,14 @@ Help me create a new Weedbox module to handle user authentication
 
 ```
 skills/
+├── SKILL.md                                  # Root skill index
 ├── README.md
 ├── README.zh-TW.md
 ├── LICENSE
+├── project-dev/
+│   └── SKILL.md                              # Project setup skill
 └── module-dev/
-    ├── SKILL.md                              # Main skill file
+    ├── SKILL.md                              # Module development skill
     └── references/
         ├── METHOD1_MANUAL_FX.md              # Manual FX module details
         └── METHOD2_WEEDBOX_GENERIC.md        # Weedbox generic module details
