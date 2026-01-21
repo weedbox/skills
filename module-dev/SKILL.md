@@ -250,7 +250,7 @@ func loadModules() ([]fx.Option, error) {
 
 ## Module Checklist
 
-- [ ] Choose Method 1 or Method 2
+- [ ] Choose Method 1 or Method 2 (recommended)
 - [ ] Create `module.go` with `Module()` function
 - [ ] Define `Params` struct with dependencies
 - [ ] Implement lifecycle hooks
