@@ -1,6 +1,14 @@
 ---
 name: module-dev
-description: Help with weedbox framework module development including creating new modules, dependency injection with Uber FX, configuration management, and lifecycle hooks. Use when creating new modules, understanding module structure, or working with dependency injection.
+description: |
+  Weedbox module/package development guide with Uber Fx dependency injection.
+  Use when: creating weedbox module, developing weedbox package, building custom module,
+  implementing dependency injection, managing module lifecycle (OnStart/OnStop),
+  configuring module with Viper, injecting database/logger/NATS/Redis dependencies.
+  Covers: Module() function, Params struct, fx.In/fx.Out, weedbox.Module generic,
+  configuration management, error handling, event publishing.
+  Keywords: weedbox module, weedbox package, uber fx, dependency injection, module development,
+  OnStart, OnStop, Params, fx.Invoke, fx.Provide, lifecycle hooks.
 ---
 
 # Weedbox Module Development

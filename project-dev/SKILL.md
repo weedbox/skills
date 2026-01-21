@@ -1,6 +1,14 @@
 ---
 name: project-dev
-description: Help with creating and structuring weedbox framework projects. Use when starting a new weedbox project, setting up project structure, or configuring the application entry point.
+description: |
+  Weedbox application/project creation and structure guide.
+  Use when: creating weedbox application, starting new weedbox project, setting up project structure,
+  configuring main.go entry point, organizing modules.go, using wbox CLI tool,
+  configuring three-phase module loading (preload/load/after).
+  Covers: project structure, main.go setup, modules.go organization, Cobra CLI integration,
+  configs.toml format, environment variables, wbox init command.
+  Keywords: weedbox application, weedbox project, wbox, main.go, modules.go, project structure,
+  cobra cli, configs.toml, preloadModules, loadModules, afterModules, weedbox.Run.
 ---
 
 # Weedbox Project Development
