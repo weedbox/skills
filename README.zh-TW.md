@@ -37,6 +37,17 @@ Skills 是 Claude Code 的擴展功能，透過提供特定領域的知識和指
 | Method 1: Manual FX | 手動控制 FX 依賴注入 | 需要複雜 FX 註解或細粒度控制 |
 | Method 2: Weedbox Generic | 使用 `weedbox.Module[P]` 泛型 (推薦) | 新模組、簡單依賴、減少樣板程式碼 |
 
+### crud-api-dev
+
+協助建立完整的 CRUD API，包含：
+
+- 業務邏輯層 (Manager) 實作
+- 使用 Gin 框架的 HTTP API 層
+- 請求綁定模式 (URI/Body/Query 分離)
+- 回應結構與錯誤處理
+- QueryHelper 分頁、搜尋、篩選
+- GORM 資料庫模型與索引設計
+
 ## 安裝方式
 
 ### 使用 add-skill（推薦）
@@ -114,11 +125,16 @@ skills/
 ├── LICENSE
 ├── project-dev/
 │   └── SKILL.md                              # 專案設定技能
-└── module-dev/
-    ├── SKILL.md                              # 模組開發技能
+├── module-dev/
+│   ├── SKILL.md                              # 模組開發技能
+│   └── references/
+│       ├── METHOD1_MANUAL_FX.md              # 手動 FX 模組詳細說明
+│       └── METHOD2_WEEDBOX_GENERIC.md        # Weedbox 泛型模組詳細說明
+└── crud-api-dev/
+    ├── SKILL.md                              # CRUD API 開發技能
     └── references/
-        ├── METHOD1_MANUAL_FX.md              # 手動 FX 模組詳細說明
-        └── METHOD2_WEEDBOX_GENERIC.md        # Weedbox 泛型模組詳細說明
+        ├── LOGIC_LAYER.md                    # 業務邏輯層詳細說明
+        └── API_LAYER.md                      # HTTP API 層詳細說明
 ```
 
 ## 相關專案

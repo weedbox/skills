@@ -37,6 +37,17 @@ Assists with Weedbox framework module development, including:
 | Method 1: Manual FX | Manual control over FX dependency injection | Complex FX annotations or fine-grained control needed |
 | Method 2: Weedbox Generic | Uses `weedbox.Module[P]` generics (Recommended) | New modules, simple dependencies, less boilerplate |
 
+### crud-api-dev
+
+Assists with building complete CRUD APIs, including:
+
+- Business logic layer (Manager) implementation
+- HTTP API layer with Gin framework
+- Request binding patterns (URI/Body/Query separation)
+- Response structures and error handling
+- QueryHelper for pagination, search, and filtering
+- GORM database models with proper indexing
+
 ## Installation
 
 ### Using add-skill (Recommended)
@@ -114,11 +125,16 @@ skills/
 ├── LICENSE
 ├── project-dev/
 │   └── SKILL.md                              # Project setup skill
-└── module-dev/
-    ├── SKILL.md                              # Module development skill
+├── module-dev/
+│   ├── SKILL.md                              # Module development skill
+│   └── references/
+│       ├── METHOD1_MANUAL_FX.md              # Manual FX module details
+│       └── METHOD2_WEEDBOX_GENERIC.md        # Weedbox generic module details
+└── crud-api-dev/
+    ├── SKILL.md                              # CRUD API development skill
     └── references/
-        ├── METHOD1_MANUAL_FX.md              # Manual FX module details
-        └── METHOD2_WEEDBOX_GENERIC.md        # Weedbox generic module details
+        ├── LOGIC_LAYER.md                    # Business logic layer details
+        └── API_LAYER.md                      # HTTP API layer details
 ```
 
 ## Related Projects
