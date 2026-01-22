@@ -39,6 +39,36 @@ Skills 是 Claude Code 的擴展功能，透過提供特定領域的知識和指
 
 ## 安裝方式
 
+### 使用 add-skill（推薦）
+
+使用 [add-skill](https://github.com/vercel-labs/add-skill) 工具將 skills 安裝到各種 AI 程式助手：
+
+```bash
+# 安裝到當前專案（互動模式）
+npx add-skill weedbox/skills
+
+# 全域安裝給 Claude Code 使用
+npx add-skill weedbox/skills -g -a claude-code
+
+# 只安裝特定 skill
+npx add-skill weedbox/skills --skill module-dev
+
+# 列出可用的 skills
+npx add-skill weedbox/skills --list
+```
+
+**選項說明：**
+
+| 參數 | 說明 |
+|------|------|
+| `-g, --global` | 安裝到使用者家目錄而非專案目錄 |
+| `-a, --agent <agents...>` | 指定目標 agent（如 claude-code、opencode） |
+| `-s, --skill <skills...>` | 安裝指定的 skills |
+| `-l, --list` | 列出可用 skills，不進行安裝 |
+| `-y, --yes` | 跳過確認提示 |
+
+### 手動安裝
+
 將此專案加入 Claude Code 的技能庫：
 
 ```bash

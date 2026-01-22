@@ -39,6 +39,36 @@ Assists with Weedbox framework module development, including:
 
 ## Installation
 
+### Using add-skill (Recommended)
+
+Use [add-skill](https://github.com/vercel-labs/add-skill) to install skills to various AI coding agents:
+
+```bash
+# Install to current project (interactive mode)
+npx add-skill weedbox/skills
+
+# Install globally for Claude Code
+npx add-skill weedbox/skills -g -a claude-code
+
+# Install specific skill only
+npx add-skill weedbox/skills --skill module-dev
+
+# List available skills
+npx add-skill weedbox/skills --list
+```
+
+**Options:**
+
+| Flag | Description |
+|------|-------------|
+| `-g, --global` | Install to user home directory instead of project |
+| `-a, --agent <agents...>` | Target specific agents (e.g., claude-code, opencode) |
+| `-s, --skill <skills...>` | Install specific skills by name |
+| `-l, --list` | List available skills without installing |
+| `-y, --yes` | Skip confirmation prompts |
+
+### Manual Installation
+
 Add this project to Claude Code's skill library:
 
 ```bash
