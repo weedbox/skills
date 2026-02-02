@@ -70,32 +70,43 @@ go get github.com/weedbox/common-modules
 
 ### Basic Application Setup
 
+**Important**:
+- `configs.NewConfig()` automatically reads `config.toml` from current directory or `./configs/`
+- Use `fx.New().Run()` to start the application (not `weedbox.Run()`)
+
 ```go
 package main
 
 import (
+    "os"
+
     "github.com/spf13/cobra"
     "github.com/weedbox/common-modules/configs"
     "github.com/weedbox/common-modules/daemon"
     "github.com/weedbox/common-modules/http_server"
     "github.com/weedbox/common-modules/logger"
-    "github.com/weedbox/weedbox"
     "go.uber.org/fx"
 )
 
-var config = configs.NewConfig("MYAPP")
+var config *configs.Config
 
 func main() {
     rootCmd := &cobra.Command{
         Use: "myapp",
         RunE: func(cmd *cobra.Command, args []string) error {
-            config.SetConfigFile(cmd)
             modules, _ := initModules()
-            return weedbox.Run(modules...)
+            app := fx.New(modules...)
+            app.Run()
+            return nil
         },
     }
-    config.BindFlag(rootCmd, "configs", "c", "configs.toml", "Config file")
-    rootCmd.Execute()
+
+    // Initialize config - automatically reads config.toml
+    config = configs.NewConfig("MYAPP")
+
+    if err := rootCmd.Execute(); err != nil {
+        os.Exit(1)
+    }
 }
 
 func initModules() ([]fx.Option, error) {

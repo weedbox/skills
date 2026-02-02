@@ -6,9 +6,9 @@ description: |
   configuring main.go entry point, organizing modules.go, using wbox CLI tool,
   configuring three-phase module loading (preload/load/after), choosing project license.
   Covers: project structure, main.go setup, modules.go organization, Cobra CLI integration,
-  configs.toml format, environment variables, wbox init command, license selection (Apache-2.0, MIT, Proprietary).
+  config.toml format, environment variables, wbox init command, license selection (Apache-2.0, MIT, Proprietary).
   Keywords: weedbox application, weedbox project, wbox, main.go, modules.go, project structure,
-  cobra cli, configs.toml, preloadModules, loadModules, afterModules, weedbox.Run,
+  cobra cli, config.toml, preloadModules, loadModules, afterModules, fx.New, fx.Run,
   license, apache, mit, proprietary, commercial, open source.
 ---
 
@@ -24,7 +24,7 @@ myproject/
 ├── README.md               # Project documentation
 ├── main.go                 # Application entry point with CLI setup
 ├── modules.go              # Module loading configuration
-├── configs.toml            # Configuration file
+├── config.toml             # Configuration file (NOTE: must be named config.toml)
 └── pkg/                    # Modules directory
     └── mymodule/
         └── module.go       # Module implementation
@@ -34,77 +34,99 @@ myproject/
 
 The main entry point uses Cobra CLI and Uber FX for dependency injection.
 
+**Important**: `configs.NewConfig()` automatically reads `config.toml` from current directory or `./configs/` directory. The application runs using `fx.New().Run()`.
+
 ```go
 package main
 
 import (
+    "os"
+
     "github.com/spf13/cobra"
     "github.com/weedbox/common-modules/configs"
-    "github.com/weedbox/weedbox"
     "go.uber.org/fx"
 )
 
-var config = configs.NewConfig("MYAPP")
+const (
+    appName        = "myapp"
+    appDescription = "My Weedbox Application"
+)
 
-var rootCmd = &cobra.Command{
-    Use:   "myapp",
-    Short: "My Weedbox Application",
-    RunE: func(cmd *cobra.Command, args []string) error {
-        config.SetConfigFile(cmd)
-
-        modules, err := initModules()
-        if err != nil {
-            return err
-        }
-
-        if printConfigs {
-            weedbox.PrintConfigs()
-        }
-
-        return weedbox.Run(modules...)
-    },
-}
+var config *configs.Config
 
 var printConfigs bool
 var verbose bool
 
-func init() {
-    rootCmd.PersistentFlags().BoolVar(&printConfigs, "print_configs", false, "Print configurations")
-    rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "Verbose output")
-    config.BindFlag(rootCmd, "configs", "c", "configs.toml", "Configuration file path")
-}
-
 func main() {
-    if err := rootCmd.Execute(); err != nil {
-        panic(err)
+    rootCmd := &cobra.Command{
+        Use:   appName,
+        Short: appDescription,
+        RunE: func(cmd *cobra.Command, args []string) error {
+            if err := run(); err != nil {
+                return err
+            }
+            return nil
+        },
+    }
+
+    // Initialize config - automatically reads config.toml
+    config = configs.NewConfig("MYAPP")
+    rootCmd.Flags().BoolVar(&printConfigs, "print_configs", false, "Print all available configs")
+    rootCmd.Flags().BoolVar(&verbose, "verbose", false, "Display detailed logs")
+
+    err := rootCmd.Execute()
+    if err != nil {
+        os.Exit(1)
     }
 }
 
 func initModules() ([]fx.Option, error) {
     modules := []fx.Option{}
 
-    // Phase 1: Preload
-    preload, err := preloadModules()
+    m, err := preloadModules()
     if err != nil {
-        return nil, err
+        return modules, err
     }
-    modules = append(modules, preload...)
+    modules = append(modules, m...)
 
-    // Phase 2: Load
-    load, err := loadModules()
+    m, err = loadModules()
     if err != nil {
-        return nil, err
+        return modules, err
     }
-    modules = append(modules, load...)
+    modules = append(modules, m...)
 
-    // Phase 3: After
-    after, err := afterModules()
+    m, err = afterModules()
     if err != nil {
-        return nil, err
+        return modules, err
     }
-    modules = append(modules, after...)
+    modules = append(modules, m...)
+
+    // Disable fx verbose logging unless --verbose flag is set
+    if !verbose {
+        modules = append(modules, fx.NopLogger)
+    }
 
     return modules, nil
+}
+
+func run() error {
+    modules, err := initModules()
+    if err != nil {
+        return err
+    }
+
+    // Create and run the fx application
+    app := fx.New(modules...)
+
+    // Print configs if requested
+    if printConfigs {
+        config.PrintAllSettings()
+    }
+
+    // Run the application (blocks until shutdown signal)
+    app.Run()
+
+    return nil
 }
 ```
 
@@ -118,7 +140,6 @@ package main
 import (
     "github.com/weedbox/common-modules/daemon"
     "github.com/weedbox/common-modules/logger"
-    "github.com/weedbox/weedbox"
     "go.uber.org/fx"
 
     "myproject/pkg/mymodule"
@@ -160,7 +181,9 @@ func afterModules() ([]fx.Option, error) {
 
 ## Configuration
 
-### Config File (configs.toml)
+### Config File (config.toml)
+
+**Important**: The config file must be named `config.toml` (not `configs.toml`). It should be placed in the current directory or `./configs/` directory. `configs.NewConfig()` automatically reads this file.
 
 ```toml
 [mymodule]
@@ -173,8 +196,11 @@ graceful_shutdown_timeout = "10s"
 
 ### Environment Variables
 
+Environment variables override config file settings. The prefix is set in `configs.NewConfig("MYAPP")`.
+
 ```bash
-# Prefix is set in configs.NewConfig("MYAPP")
+# Format: {PREFIX}_{SECTION}_{KEY}
+# Dots and dashes in keys are replaced with underscores
 export MYAPP_MYMODULE_TIMEOUT=60s
 export MYAPP_MYMODULE_ENABLED=true
 ```
@@ -517,18 +543,23 @@ package main
 ## Running the Application
 
 ```bash
-# Run with default config
+# Run with default config (reads config.toml automatically)
 go run .
-
-# Run with custom config file
-go run . -c myconfig.toml
 
 # Print all configurations
 go run . --print_configs
 
-# Verbose mode
+# Verbose mode (shows fx dependency injection logs)
 go run . --verbose
+
+# Build and run
+go build -o myapp .
+./myapp
+./myapp --print_configs
+./myapp --verbose
 ```
+
+**Note**: The config file path is not configurable via command-line flags. Place your `config.toml` in the current directory or `./configs/` directory.
 
 ## Project Checklist
 
@@ -536,7 +567,7 @@ go run . --verbose
 - [ ] Initialize project: `wbox init <name> <module-path>`
 - [ ] **Choose license**: Apache-2.0 (default), MIT, or Proprietary
 - [ ] Create `LICENSE` file with chosen license
-- [ ] Create configuration file (configs.toml)
+- [ ] Create configuration file (`config.toml`, not `configs.toml`)
 - [ ] Implement application modules in `pkg/`
 - [ ] Add license headers to source files (for open source projects)
 

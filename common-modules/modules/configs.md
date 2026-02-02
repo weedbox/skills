@@ -14,33 +14,38 @@ go get github.com/weedbox/common-modules/configs
 import "github.com/weedbox/common-modules/configs"
 
 // Create config with environment variable prefix
+// This automatically reads config.toml from current directory or ./configs/
 config := configs.NewConfig("MYAPP")
 
-// Set defaults programmatically
+// Set defaults programmatically (won't override existing values)
 config.SetConfigs(map[string]interface{}{
     "http_server.host": "0.0.0.0",
     "http_server.port": 8080,
 })
 
-// Bind CLI flags
-config.BindFlag(rootCmd, "configs", "c", "configs.toml", "Configuration file path")
-config.SetConfigFile(cmd)
-
 // Debug: print all settings
 config.PrintAllSettings()
 ```
+
+## Auto-Loading Config File
+
+`NewConfig()` automatically searches for config files:
+1. `./config.toml` (current directory)
+2. `./configs/config.toml` (configs subdirectory)
+
+**Note**: The file must be named `config.toml`, not `configs.toml`.
 
 ## Configuration Priority
 
 Settings are resolved in this order (highest priority first):
 
 1. **Environment variables**: `MYAPP_HTTP_SERVER_PORT=8080`
-2. **TOML config file**
-3. **Programmatic defaults**
+2. **TOML config file** (`config.toml`)
+3. **Programmatic defaults** via `SetConfigs()`
 
 ## Environment Variable Mapping
 
-Variables use the pattern `PREFIX_KEY_NAME`, where dots convert to underscores.
+Variables use the pattern `PREFIX_KEY_NAME`, where dots and dashes convert to underscores.
 
 | Config Key | Environment Variable |
 |------------|---------------------|
@@ -49,6 +54,8 @@ Variables use the pattern `PREFIX_KEY_NAME`, where dots convert to underscores.
 | `nats.max_reconnects` | `MYAPP_NATS_MAX_RECONNECTS` |
 
 ## TOML Format
+
+Create `config.toml` in your project root:
 
 ```toml
 [http_server]
@@ -65,12 +72,11 @@ dbname = "myapp"
 
 | Method | Description |
 |--------|-------------|
-| `NewConfig(prefix string)` | Create new config instance with env prefix |
+| `NewConfig(prefix string)` | Create new config instance with env prefix; auto-loads config.toml |
 | `SetConfigs(map)` | Set default values (won't override existing) |
 | `GetAllSettings()` | Return all settings as nested map |
 | `PrintAllSettings()` | Print all settings to stdout |
-| `BindFlag(cmd, name, short, default, usage)` | Bind CLI flag |
-| `SetConfigFile(cmd)` | Load config file from CLI flag |
+| `PrintSettings(scope, map)` | Print settings for a specific scope |
 
 ## Integration with Fx
 
@@ -78,25 +84,32 @@ dbname = "myapp"
 package main
 
 import (
+    "os"
+
     "github.com/spf13/cobra"
     "github.com/weedbox/common-modules/configs"
-    "github.com/weedbox/weedbox"
     "go.uber.org/fx"
 )
 
-var config = configs.NewConfig("MYAPP")
+var config *configs.Config
 
-var rootCmd = &cobra.Command{
-    Use: "myapp",
-    RunE: func(cmd *cobra.Command, args []string) error {
-        config.SetConfigFile(cmd)
-        modules, _ := initModules()
-        return weedbox.Run(modules...)
-    },
-}
+func main() {
+    rootCmd := &cobra.Command{
+        Use: "myapp",
+        RunE: func(cmd *cobra.Command, args []string) error {
+            modules, _ := initModules()
+            app := fx.New(modules...)
+            app.Run()
+            return nil
+        },
+    }
 
-func init() {
-    config.BindFlag(rootCmd, "configs", "c", "configs.toml", "Config file")
+    // Initialize config - automatically reads config.toml
+    config = configs.NewConfig("MYAPP")
+
+    if err := rootCmd.Execute(); err != nil {
+        os.Exit(1)
+    }
 }
 
 func initModules() ([]fx.Option, error) {
@@ -105,4 +118,25 @@ func initModules() ([]fx.Option, error) {
         // other modules...
     }, nil
 }
+```
+
+## Reading Config Values
+
+Use `github.com/spf13/viper` to read config values in your modules:
+
+```go
+import "github.com/spf13/viper"
+
+// Read values
+port := viper.GetInt("http_server.port")
+host := viper.GetString("http_server.host")
+timeout := viper.GetDuration("mymodule.timeout")
+enabled := viper.GetBool("mymodule.enabled")
+
+// With module scope helper
+func (m *MyModule) GetConfigPath(key string) string {
+    return fmt.Sprintf("%s.%s", m.scope, key)
+}
+
+timeout := viper.GetDuration(m.GetConfigPath("timeout"))
 ```
