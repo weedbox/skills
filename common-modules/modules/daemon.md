@@ -96,11 +96,4 @@ func initModules() ([]fx.Option, error) {
 
 ## Configuration
 
-| Parameter | Default | Purpose |
-|-----------|---------|---------|
-| `{scope}.graceful_shutdown_timeout` | `10s` | Shutdown timeout |
-
-```toml
-[daemon]
-graceful_shutdown_timeout = "30s"
-```
+This module has no configuration parameters. It relies on Fx's built-in lifecycle management for shutdown handling.

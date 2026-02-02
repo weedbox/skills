@@ -189,9 +189,6 @@ func afterModules() ([]fx.Option, error) {
 [mymodule]
 timeout = "30s"
 enabled = true
-
-[daemon]
-graceful_shutdown_timeout = "10s"
 ```
 
 ### Environment Variables
