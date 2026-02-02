@@ -4,6 +4,15 @@ This approach uses `weedbox.Module[P]` generics for cleaner code with built-in l
 
 **Reference Implementation**: `pkg/pkg_manager/module.go`
 
+## ⚠️ Critical Rules
+
+| Rule | Example |
+|------|---------|
+| Use `m.Params()` to access parameters | `db := m.Params().Database.GetDB()` |
+| Database must use interface type | `Database database.DatabaseConnector` (NOT `*sqlite_connector.SQLiteConnector`) |
+| Common-modules do NOT need name tag | `HTTPServer *http_server.HTTPServer` (no `name:"..."` needed) |
+| Custom Method 2 modules need name tag | `MyManager *mymodule.MyManager \`name:"mymodule"\`` |
+
 ## When to Use
 
 - Creating new modules from scratch

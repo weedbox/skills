@@ -60,6 +60,40 @@ This skill provides detailed usage instructions for all modules in `github.com/w
 
 ---
 
+## ⚠️ Critical Rules
+
+### Use Interface Types, NOT Concrete Implementations
+
+When referencing common-modules in Params, you **MUST use interface types**:
+
+```go
+// ✅ Correct - use interface
+type Params struct {
+    weedbox.Params
+    Database database.DatabaseConnector  // interface type
+}
+
+// ❌ Wrong - using concrete implementation
+type Params struct {
+    weedbox.Params
+    Database *sqlite_connector.SQLiteConnector  // concrete type
+}
+```
+
+### Common-modules Do NOT Need name Tag
+
+```go
+// ✅ Correct
+Database   database.DatabaseConnector
+HTTPServer *http_server.HTTPServer
+
+// ❌ Wrong - no name tag needed
+Database   database.DatabaseConnector `name:"database"`
+HTTPServer *http_server.HTTPServer    `name:"http_server"`
+```
+
+---
+
 ## Quick Start
 
 ### Installation

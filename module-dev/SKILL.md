@@ -22,6 +22,24 @@ Plasma backend uses:
 - **weedbox/common-modules** - Common reusable modules
 - **go.uber.org/fx** - Dependency injection
 
+## ⚠️ Common Mistakes (DO NOT)
+
+| Wrong | Correct | Reason |
+|-------|---------|--------|
+| `m.GetParams()` | `m.Params()` | weedbox.Module uses `Params()` method |
+| `*sqlite_connector.SQLiteConnector` | `database.DatabaseConnector` | Use interface types, not concrete implementations |
+| `*postgres_connector.PostgresConnector` | `database.DatabaseConnector` | Same as above, always use interface for database |
+| `*http_server.HTTPServer \`name:"..."\`` | `*http_server.HTTPServer` | common-modules do NOT need name tag |
+
+## 📋 Pre-Development Checklist
+
+Before creating a new module, you **MUST**:
+
+1. **Read existing modules** - Find an existing module in the project (e.g., `customer/module.go`) and read the complete code as a template
+2. **Verify Params types** - Dependencies must use interface types (e.g., `database.DatabaseConnector`), not concrete implementations
+3. **Verify method names** - weedbox modules use `m.Params()` to access parameters
+4. **Verify name tag rules** - Method 2 modules require `name` tag, common-modules do NOT
+
 ## Module Structure
 
 ```
