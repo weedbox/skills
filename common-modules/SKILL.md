@@ -3,11 +3,11 @@ name: common-modules
 description: |
   Reference guide for weedbox/common-modules - reusable modules for weedbox applications.
   Use when: integrating configs, logger, HTTP server (Gin), database (PostgreSQL, SQLite, GORM),
-  NATS messaging (JetStream), Redis cache, or mailer (SMTP) into weedbox projects.
+  NATS messaging (JetStream), Redis cache, mailer (SMTP), or Swagger API docs into weedbox projects.
   Covers: configuration management, structured logging, health checks, database connectors,
-  message queues, caching, email sending.
+  message queues, caching, email sending, API documentation.
   Keywords: common-modules, weedbox module, configs, logger, http_server, database, postgres, sqlite,
-  nats, jetstream, redis, mailer, healthcheck, daemon, Uber Fx modules.
+  nats, jetstream, redis, mailer, healthcheck, daemon, swagger, openapi, Uber Fx modules.
 ---
 
 # Common Modules Reference
@@ -30,6 +30,7 @@ This skill provides detailed usage instructions for all modules in `github.com/w
 |--------|-------------|---------------|
 | `http_server` | Gin-based HTTP server with CORS support | [http_server.md](./modules/http_server.md) |
 | `healthcheck_apis` | Kubernetes-compatible health check endpoints | [healthcheck_apis.md](./modules/healthcheck_apis.md) |
+| `swagger` | Swagger/OpenAPI documentation with Scalar UI | [swagger.md](./modules/swagger.md) |
 
 ### Database
 
@@ -167,7 +168,7 @@ Modules should be loaded in three phases:
 | Phase | Purpose | Modules |
 |-------|---------|---------|
 | **1. Preload** | Configuration and logging | `configs`, `logger` |
-| **2. Load** | Application modules | `http_server`, `database`, `nats_connector`, `redis_connector`, `mailer`, custom modules |
+| **2. Load** | Application modules | `http_server`, `swagger`, `healthcheck_apis`, `database`, `nats_connector`, `redis_connector`, `mailer`, custom modules |
 | **3. After** | Lifecycle management | `daemon` (must be last) |
 
 **Important**: The `daemon` module must be placed **last** because it marks the service as ready after all other modules initialize.
@@ -207,6 +208,11 @@ port = 6379
 host = "smtp.gmail.com"
 port = 587
 tls = true
+
+[swagger]
+enabled = true
+base_path = "/swagger"
+title = "API Reference"
 ```
 
 ### Environment Variables
@@ -235,6 +241,7 @@ type Params struct {
     NATS        *nats_connector.NATSConnector
     Redis       *redis_connector.RedisConnector
     Mailer      *mailer.Mailer
+    Swagger     *swagger.Swagger
 }
 ```
 
