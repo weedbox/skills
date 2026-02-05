@@ -24,6 +24,17 @@ Skills for developing applications and modules with the Weedbox framework.
 ## When to Use
 
 - **project-dev** - Creating new weedbox application, setting up project structure, configuring main.go and modules.go
-- **module-dev** - Developing custom weedbox modules/packages, dependency injection, lifecycle hooks, configuration management
+- **module-dev** - Developing custom weedbox modules/packages, dependency injection, lifecycle hooks, configuration management, creating module skills documentation
 - **crud-api-dev** - Building REST APIs with CRUD operations, request binding patterns, QueryHelper for pagination/search/filtering
 - **common-modules** - Integrating configs, logger, HTTP server, database (PostgreSQL/SQLite), NATS messaging, Redis cache, or mailer
+
+## Module Skills
+
+Each module can have its own `.skills/` directory containing development documentation. This helps Claude Code understand module-specific details.
+
+```
+pkg/mymodule/.skills/mymodule-development.md      # Business logic docs
+pkg/mymodule_apis/.skills/mymodule-apis-development.md  # API docs
+```
+
+See [module-dev](./module-dev/SKILL.md) for creating module skills.

@@ -29,6 +29,7 @@ Assists with Weedbox framework module development, including:
 - Lifecycle hooks
 - Data model design
 - Event handling
+- Creating module-specific skills documentation
 
 **Two methods for module development:**
 
@@ -36,6 +37,15 @@ Assists with Weedbox framework module development, including:
 |--------|-------------|----------|
 | Method 1: Manual FX | Manual control over FX dependency injection | Complex FX annotations or fine-grained control needed |
 | Method 2: Weedbox Generic | Uses `weedbox.Module[P]` generics (Recommended) | New modules, simple dependencies, less boilerplate |
+
+**Module Skills:**
+
+Each module can have its own `.skills/` directory with development documentation:
+
+```
+pkg/mymodule/.skills/mymodule-development.md
+pkg/mymodule_apis/.skills/mymodule-apis-development.md
+```
 
 ### crud-api-dev
 
@@ -129,13 +139,31 @@ skills/
 │   ├── SKILL.md                              # Module development skill
 │   └── references/
 │       ├── METHOD1_MANUAL_FX.md              # Manual FX module details
-│       └── METHOD2_WEEDBOX_GENERIC.md        # Weedbox generic module details
+│       ├── METHOD2_WEEDBOX_GENERIC.md        # Weedbox generic module details
+│       └── MODULE_SKILLS.md                  # Module skills guide
 └── crud-api-dev/
     ├── SKILL.md                              # CRUD API development skill
     └── references/
         ├── LOGIC_LAYER.md                    # Business logic layer details
         └── API_LAYER.md                      # HTTP API layer details
 ```
+
+## Module-Specific Skills
+
+Weedbox projects can include module-specific skills in `.skills/` directories:
+
+```
+pkg/
+├── product/
+│   └── .skills/
+│       └── product-development.md            # Product module documentation
+├── product_apis/
+│   └── .skills/
+│       └── product-apis-development.md       # Product API documentation
+└── ...
+```
+
+These skills document module-specific details like data models, manager methods, API endpoints, and usage examples.
 
 ## Related Projects
 

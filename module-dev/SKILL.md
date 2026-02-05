@@ -391,7 +391,53 @@ func loadModules() ([]fx.Option, error) {
 - [ ] Register in `modules.go`
 - [ ] Add tests
 
+## Module Skills
+
+Module Skills are documentation files placed in `.skills/` subdirectories within each module. They help Claude Code understand and assist with specific module development.
+
+### Directory Structure
+
+```
+pkg/
+├── mymodule/
+│   ├── .skills/
+│   │   └── mymodule-development.md    # Business logic module skill
+│   ├── module.go
+│   └── ...
+└── mymodule_apis/
+    ├── .skills/
+    │   └── mymodule-apis-development.md  # API module skill
+    └── ...
+```
+
+### When to Create Module Skills
+
+- After completing new module development
+- For complex modules with multiple files or special logic
+- For modules requiring cross-module integration documentation
+- For API modules to provide endpoint reference
+
+### Skill Content Overview
+
+**Business Logic Module** (`*-development.md`):
+- Module overview and purpose
+- Data model (database table structure)
+- Configuration structures
+- Manager methods (Create, Get, Update, Delete, List)
+- Error types
+- Usage examples
+
+**API Module** (`*-apis-development.md`):
+- API endpoints table
+- Request/Response structures
+- HTTP status code mappings
+- Validation rules
+- cURL examples
+
+For complete documentation, see [./references/MODULE_SKILLS.md](./references/MODULE_SKILLS.md).
+
 ## Related Documentation
 
 - [./references/METHOD1_MANUAL_FX.md](./references/METHOD1_MANUAL_FX.md) - Manual FX module details
 - [./references/METHOD2_WEEDBOX_GENERIC.md](./references/METHOD2_WEEDBOX_GENERIC.md) - Weedbox generic module details
+- [./references/MODULE_SKILLS.md](./references/MODULE_SKILLS.md) - Module skills guide
