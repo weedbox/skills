@@ -12,6 +12,29 @@ description: |
 
 Skills for developing applications and modules with the Weedbox framework.
 
+## ⚠️ Critical Rules
+
+### Check common-modules Before Creating New Modules
+
+When user requests to "add XXX feature/module" (e.g., healthcheck, logging, database, cache):
+
+1. **First check** [common-modules](./common-modules/SKILL.md) for existing modules
+2. **If exists** → Use it directly, do NOT implement from scratch
+3. **If not exists** → Then use module-dev to create new module
+
+**Available modules in common-modules**:
+- `healthcheck_apis` - Health check endpoints
+- `http_server` - HTTP server
+- `swagger` - API documentation
+- `postgres_connector` / `sqlite_connector` - Database
+- `nats_connector` - Message queue
+- `redis_connector` - Cache
+- `mailer` - Email sending
+- `logger` - Logging
+- `daemon` - Service lifecycle
+
+---
+
 ## Available Skills
 
 | Skill | Description |
@@ -38,3 +61,13 @@ pkg/mymodule_apis/.skills/mymodule-apis-development.md  # API docs
 ```
 
 See [module-dev](./module-dev/SKILL.md) for creating module skills.
+
+---
+
+## Editing Guidelines (for Claude)
+
+When editing any files in this weedbox skills directory:
+
+1. **Use English only** - All documentation must be written in English
+2. **Read before edit** - Always read the full file content before making changes
+3. **Follow existing style** - Match the formatting and structure of existing content
