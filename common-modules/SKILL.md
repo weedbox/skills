@@ -251,3 +251,4 @@ type Params struct {
 
 - [project-dev](../project-dev/SKILL.md) - Project structure and application setup
 - [module-dev](../module-dev/SKILL.md) - Custom module development
+- [user-modules](../user-modules/SKILL.md) - User management, authentication, and RBAC modules

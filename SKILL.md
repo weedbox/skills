@@ -14,13 +14,14 @@ Skills for developing applications and modules with the Weedbox framework.
 
 ## ⚠️ Critical Rules
 
-### Check common-modules Before Creating New Modules
+### Check Existing Module Libraries Before Creating New Modules
 
-When user requests to "add XXX feature/module" (e.g., healthcheck, logging, database, cache):
+When user requests to "add XXX feature/module", check existing libraries first:
 
-1. **First check** [common-modules](./common-modules/SKILL.md) for existing modules
-2. **If exists** → Use it directly, do NOT implement from scratch
-3. **If not exists** → Then use module-dev to create new module
+1. **First check** [common-modules](./common-modules/SKILL.md) for infrastructure modules
+2. **Then check** [user-modules](./user-modules/SKILL.md) for user/auth/RBAC modules
+3. **If exists** → Use it directly, do NOT implement from scratch
+4. **If not exists** → Then use module-dev to create new module
 
 **Available modules in common-modules**:
 - `healthcheck_apis` - Health check endpoints
@@ -33,6 +34,15 @@ When user requests to "add XXX feature/module" (e.g., healthcheck, logging, data
 - `logger` - Logging
 - `daemon` - Service lifecycle
 
+**Available modules in user-modules**:
+- `user` - User management (CRUD, bcrypt, UUID v7)
+- `auth` - JWT authentication with refresh token rotation
+- `rbac` - Role-based access control (privy integration)
+- `permissions` - Builtin permission definitions and extension API
+- `user_apis` - REST API handlers for user management
+- `auth_apis` - REST API handlers for login/refresh/logout
+- `http_token_validator` - Optional global JWT validation middleware
+
 ---
 
 ## Available Skills
@@ -43,6 +53,7 @@ When user requests to "add XXX feature/module" (e.g., healthcheck, logging, data
 | [module-dev](./module-dev/SKILL.md) | Develop weedbox modules with Uber Fx dependency injection |
 | [crud-api-dev](./crud-api-dev/SKILL.md) | Build complete CRUD APIs with business logic and HTTP handlers |
 | [common-modules](./common-modules/SKILL.md) | Use built-in modules (HTTP, database, NATS, Redis, etc.) |
+| [user-modules](./user-modules/SKILL.md) | User management, JWT authentication, and RBAC modules |
 
 ## When to Use
 
@@ -50,6 +61,7 @@ When user requests to "add XXX feature/module" (e.g., healthcheck, logging, data
 - **module-dev** - Developing custom weedbox modules/packages, dependency injection, lifecycle hooks, configuration management, creating module skills documentation
 - **crud-api-dev** - Building REST APIs with CRUD operations, request binding patterns, QueryHelper for pagination/search/filtering
 - **common-modules** - Integrating configs, logger, HTTP server, database (PostgreSQL/SQLite), NATS messaging, Redis cache, or mailer
+- **user-modules** - Adding user management, JWT authentication (login/refresh/logout), role-based access control (RBAC), or permission-protected REST APIs
 
 ## Module Skills
 

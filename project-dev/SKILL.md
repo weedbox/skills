@@ -537,6 +537,19 @@ package main
 | `sqlite_connector` | `sqlite_connector.Module("scope")` | load | SQLite database |
 | `nats_connector` | `nats_connector.Module("scope")` | load | NATS messaging |
 
+## User Modules from weedbox/user-modules
+
+| Module | Import | Phase | Purpose |
+|--------|--------|-------|---------|
+| `user` | `user.Module("user")` | load | User management (CRUD, bcrypt, UUID v7) |
+| `rbac` | `rbac.Module("rbac")` | load | Role-based access control |
+| `auth` | `auth.Module("auth")` | load | JWT authentication and middleware |
+| `user_apis` | `user_apis.Module("user_apis")` | load | User REST API endpoints |
+| `auth_apis` | `auth_apis.Module("auth_apis")` | load | Auth REST API endpoints |
+| `http_token_validator` | `http_token_validator.Module("scope")` | load | Global JWT validation (optional) |
+
+See [user-modules skill](../user-modules/SKILL.md) for detailed documentation.
+
 ## Running the Application
 
 ```bash
@@ -571,3 +584,4 @@ go build -o myapp .
 ## Related
 
 - [module-dev](../module-dev/SKILL.md) - Detailed module development guide
+- [user-modules](../user-modules/SKILL.md) - User management, auth, and RBAC modules

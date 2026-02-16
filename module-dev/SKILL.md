@@ -148,6 +148,11 @@ type Params struct {
     // Method 2 modules - REQUIRE `name` tag
     PkgManager *pkg_manager.PkgManager `name:"pkg_manager"`
 
+    // User modules - REQUIRE `name` tag (all use Method 2)
+    User *user.UserManager `name:"user"`
+    RBAC *rbac.RBACManager `name:"rbac"`
+    Auth *auth.AuthManager `name:"auth"`
+
     // Method 1 modules - NO `name` tag needed
     ViewManager *view_manager.ViewManager
 
@@ -155,6 +160,22 @@ type Params struct {
     Database database.DatabaseConnector
 }
 ```
+
+## User Modules Reference
+
+Available from `github.com/weedbox/user-modules`:
+
+| Module | Import | Purpose |
+|--------|--------|---------|
+| `user` | `user.Module("user")` | User CRUD, bcrypt, UUID v7 |
+| `rbac` | `rbac.Module("rbac")` | RBAC with privy |
+| `auth` | `auth.Module("auth")` | JWT auth, middleware |
+| `permissions` | (plain package) | Permission definitions |
+| `user_apis` | `user_apis.Module("user_apis")` | User REST endpoints |
+| `auth_apis` | `auth_apis.Module("auth_apis")` | Auth REST endpoints |
+| `http_token_validator` | `http_token_validator.Module("scope")` | Global JWT middleware |
+
+See [user-modules skill](../user-modules/SKILL.md) for detailed documentation.
 
 ## Common Modules Reference
 
@@ -441,3 +462,4 @@ For complete documentation, see [./references/MODULE_SKILLS.md](./references/MOD
 - [./references/METHOD1_MANUAL_FX.md](./references/METHOD1_MANUAL_FX.md) - Manual FX module details
 - [./references/METHOD2_WEEDBOX_GENERIC.md](./references/METHOD2_WEEDBOX_GENERIC.md) - Weedbox generic module details
 - [./references/MODULE_SKILLS.md](./references/MODULE_SKILLS.md) - Module skills guide
+- [../user-modules/SKILL.md](../user-modules/SKILL.md) - User management, auth, and RBAC modules

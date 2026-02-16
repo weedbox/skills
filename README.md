@@ -47,6 +47,17 @@ pkg/mymodule/.skills/mymodule-development.md
 pkg/mymodule_apis/.skills/mymodule-apis-development.md
 ```
 
+### user-modules
+
+Reference for `github.com/weedbox/user-modules` — reusable modules for user management, authentication, and RBAC:
+
+- User CRUD with bcrypt password hashing and UUID v7 IDs
+- JWT authentication with refresh token rotation
+- Role-based access control powered by privy
+- Ready-to-use REST API endpoints for user and auth
+- Extensible permission system with merge API
+- Optional global JWT validation middleware
+
 ### crud-api-dev
 
 Assists with building complete CRUD APIs, including:
@@ -141,11 +152,21 @@ skills/
 │       ├── METHOD1_MANUAL_FX.md              # Manual FX module details
 │       ├── METHOD2_WEEDBOX_GENERIC.md        # Weedbox generic module details
 │       └── MODULE_SKILLS.md                  # Module skills guide
-└── crud-api-dev/
-    ├── SKILL.md                              # CRUD API development skill
-    └── references/
-        ├── LOGIC_LAYER.md                    # Business logic layer details
-        └── API_LAYER.md                      # HTTP API layer details
+├── crud-api-dev/
+│   ├── SKILL.md                              # CRUD API development skill
+│   └── references/
+│       ├── LOGIC_LAYER.md                    # Business logic layer details
+│       └── API_LAYER.md                      # HTTP API layer details
+└── user-modules/
+    ├── SKILL.md                              # User modules reference skill
+    └── modules/
+        ├── permissions.md                    # Permission definitions and extension API
+        ├── rbac.md                           # RBAC manager with privy
+        ├── user.md                           # User CRUD and password management
+        ├── auth.md                           # JWT auth and middleware
+        ├── user_apis.md                      # User REST API endpoints
+        ├── auth_apis.md                      # Auth REST API endpoints
+        └── http_token_validator.md           # Global JWT validation middleware
 ```
 
 ## Module-Specific Skills
@@ -169,6 +190,7 @@ These skills document module-specific details like data models, manager methods,
 
 - [weedbox/weedbox](https://github.com/weedbox/weedbox) - Weedbox base module framework
 - [weedbox/common-modules](https://github.com/weedbox/common-modules) - Common reusable modules
+- [weedbox/user-modules](https://github.com/weedbox/user-modules) - User management, auth, and RBAC modules
 
 ## Contributing
 
