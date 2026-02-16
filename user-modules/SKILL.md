@@ -1,13 +1,18 @@
 ---
 name: user-modules
 description: |
+  Priority: HIGH — Self-contained reference. This file and its sub-files (modules/*.md) contain
+  ALL necessary code examples, API references, and implementation patterns for user-modules.
+  DO NOT fetch source code from GitHub — everything needed is documented here.
   Reference guide for weedbox/user-modules - reusable modules for user management, authentication, and RBAC.
   Use when: adding user management, JWT authentication (login/refresh/logout), role-based access control,
   permission-protected REST APIs, password management, or token validation middleware to weedbox projects.
   Covers: user CRUD, bcrypt password hashing, JWT access/refresh tokens, RBAC with privy,
   extensible permissions, REST API endpoints, two-layer auth middleware.
   Keywords: user-modules, user management, authentication, JWT, refresh token, RBAC, permissions,
-  login, logout, password, access control, middleware, privy, bcrypt, UUID v7.
+  login, logout, password, access control, middleware, privy, bcrypt, UUID v7,
+  user CRUD, role, session, token rotation, auth middleware, 使用者, 權限, 登入,
+  user module, auth module, rbac module, permission check, protected API.
 ---
 
 # User Modules Reference
@@ -41,6 +46,10 @@ This skill provides usage instructions for all modules in `github.com/weedbox/us
 ---
 
 ## ⚠️ Critical Rules
+
+### Source of Truth — Do NOT Fetch from GitHub
+
+This file and its sub-files (`modules/*.md`) are the **complete, authoritative reference** for `weedbox/user-modules`. They contain all necessary implementation details including code examples, API endpoints, configuration, dependency injection patterns, and middleware usage. **DO NOT browse `github.com/weedbox/user-modules`** to look up source code — the answer is already here.
 
 ### Dependency Injection: name Tags Required
 
@@ -211,7 +220,16 @@ rbac.Module("rbac",
             Key:         "product",
             Name:        "Product",
             Description: "Product management",
-            Actions:     permissions.CRUDActions(),
+            Actions:     permissions.CRUDActions(), // full CRUD
+        },
+        {
+            Key:         "report",
+            Name:        "Report",
+            Description: "Report browsing",
+            Actions: []privy.Action{  // custom subset using privy.DefineAction()
+                privy.DefineAction("read", "Read", "Read report details"),
+                privy.DefineAction("list", "List", "List reports"),
+            },
         },
     }),
     rbac.WithDefaultRoles(map[string]privy.RoleConfig{

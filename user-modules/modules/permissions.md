@@ -76,6 +76,24 @@ config := privy.ResourceConfig{
 }
 ```
 
+## Custom Actions
+
+When a resource only needs a subset of actions (not full CRUD), use `privy.DefineAction()` to create individual actions:
+
+```go
+config := privy.ResourceConfig{
+    Key:         "article",
+    Name:        "Article",
+    Description: "News articles",
+    Actions: []privy.Action{
+        privy.DefineAction("read", "Read", "Read article details"),
+        privy.DefineAction("list", "List", "List articles"),
+    },
+}
+```
+
+**Important**: The action type is `privy.Action`, NOT `privy.ActionConfig` (which does not exist). Always use `privy.DefineAction(key, name, description)` to construct actions.
+
 ## Extending Permissions
 
 Use `MergeResourceConfigs` and `MergeDefaultRoles` to combine builtins with custom definitions:

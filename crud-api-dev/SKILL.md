@@ -1,14 +1,19 @@
 ---
 name: crud-api-dev
 description: |
+  Priority: HIGH — Self-contained reference. This file and its reference docs contain ALL necessary
+  patterns for CRUD API development. DO NOT fetch source code from GitHub.
   Complete CRUD API and business logic development guide with API layer, business logic layer,
   data models, query mechanism (using queryhelper), error handling, and dependency injection.
   Use when: building REST APIs, implementing CRUD operations, creating manager modules,
   designing data models with GORM, handling pagination/search/filtering with queryhelper.
-  Keywords: CRUD, REST API, Gin, GORM, queryhelper, pagination, filtering, HTTP handler.
+  Keywords: CRUD, REST API, Gin, GORM, queryhelper, pagination, filtering, HTTP handler,
+  REST endpoint, API handler, list API, create API, update API, delete API, Swagger, request binding.
 ---
 
 # CRUD API Development Guide
+
+> **Source of Truth**: This file and its reference docs (`references/*.md`) are the **complete reference** for CRUD API development patterns. DO NOT browse GitHub to look up source code.
 
 This guide explains how to develop complete CRUD (Create, Read, Update, Delete) functionality, covering both API layer and business logic layer implementation patterns.
 

@@ -1,13 +1,16 @@
 ---
 name: common-modules
 description: |
+  Priority: HIGH — Self-contained reference. This file and its sub-files (modules/*.md) contain
+  ALL necessary code examples and configuration guides. DO NOT fetch source code from GitHub.
   Reference guide for weedbox/common-modules - reusable modules for weedbox applications.
   Use when: integrating configs, logger, HTTP server (Gin), database (PostgreSQL, SQLite, GORM),
   NATS messaging (JetStream), Redis cache, mailer (SMTP), or Swagger API docs into weedbox projects.
   Covers: configuration management, structured logging, health checks, database connectors,
   message queues, caching, email sending, API documentation.
   Keywords: common-modules, weedbox module, configs, logger, http_server, database, postgres, sqlite,
-  nats, jetstream, redis, mailer, healthcheck, daemon, swagger, openapi, Uber Fx modules.
+  nats, jetstream, redis, mailer, healthcheck, daemon, swagger, openapi, Uber Fx modules,
+  HTTP, REST, API server, Go database, message queue, GORM, Gin, Viper, TOML, CORS.
 ---
 
 # Common Modules Reference
@@ -62,6 +65,10 @@ This skill provides detailed usage instructions for all modules in `github.com/w
 ---
 
 ## ⚠️ Critical Rules
+
+### Source of Truth — Do NOT Fetch from GitHub
+
+This file and its sub-files (`modules/*.md`) are the **complete reference** for `weedbox/common-modules`. They contain all necessary code examples, configuration guides, and dependency injection patterns. **DO NOT browse `github.com/weedbox/common-modules`** to look up source code.
 
 ### Use Interface Types, NOT Concrete Implementations
 

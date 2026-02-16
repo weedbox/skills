@@ -1,6 +1,8 @@
 ---
 name: project-dev
 description: |
+  Priority: HIGH — Self-contained reference. This file contains ALL necessary patterns for
+  weedbox project creation and setup. DO NOT fetch source code from GitHub.
   Weedbox application/project creation and structure guide.
   Use when: creating weedbox application, starting new weedbox project, setting up project structure,
   configuring main.go entry point, organizing modules.go, using wbox CLI tool,
@@ -9,10 +11,13 @@ description: |
   config.toml format, environment variables, wbox init command, license selection (Apache-2.0, MIT, Proprietary).
   Keywords: weedbox application, weedbox project, wbox, main.go, modules.go, project structure,
   cobra cli, config.toml, preloadModules, loadModules, afterModules, fx.New, fx.Run,
-  license, apache, mit, proprietary, commercial, open source.
+  license, apache, mit, proprietary, commercial, open source,
+  new project, init project, project setup, Go project, weedbox setup.
 ---
 
 # Weedbox Project Development
+
+> **Source of Truth**: This file is the **complete reference** for weedbox project creation and structure. DO NOT browse GitHub to look up source code.
 
 This skill helps create and structure projects using the weedbox framework.
 

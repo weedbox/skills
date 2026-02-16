@@ -54,7 +54,16 @@ rbac.Module("rbac",
             Key:         "product",
             Name:        "Product",
             Description: "Product management",
-            Actions:     permissions.CRUDActions(),
+            Actions:     permissions.CRUDActions(), // full CRUD: create, read, update, delete, list
+        },
+        {
+            Key:         "report",
+            Name:        "Report",
+            Description: "Report browsing",
+            Actions: []privy.Action{  // custom subset using privy.DefineAction()
+                privy.DefineAction("read", "Read", "Read report details"),
+                privy.DefineAction("list", "List", "List reports"),
+            },
         },
     }),
     rbac.WithDefaultRoles(map[string]privy.RoleConfig{

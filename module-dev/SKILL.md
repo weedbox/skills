@@ -1,6 +1,8 @@
 ---
 name: module-dev
 description: |
+  Priority: HIGH — Self-contained reference. This file and its reference docs contain ALL necessary
+  patterns for module development. DO NOT fetch source code from GitHub.
   Weedbox module/package development guide with Uber Fx dependency injection.
   Use when: creating weedbox module, developing weedbox package, building custom module,
   implementing dependency injection, managing module lifecycle (OnStart/OnStop),
@@ -8,7 +10,8 @@ description: |
   Covers: Module() function, Params struct, fx.In/fx.Out, weedbox.Module generic,
   configuration management, error handling, event publishing.
   Keywords: weedbox module, weedbox package, uber fx, dependency injection, module development,
-  OnStart, OnStop, Params, fx.Invoke, fx.Provide, lifecycle hooks.
+  OnStart, OnStop, Params, fx.Invoke, fx.Provide, lifecycle hooks,
+  create module, new module, custom module, Go module, weedbox generic, module skills.
 ---
 
 # Weedbox Module Development
@@ -21,6 +24,12 @@ Plasma backend uses:
 - **weedbox/weedbox** - Base module framework
 - **weedbox/common-modules** - Common reusable modules
 - **go.uber.org/fx** - Dependency injection
+
+## ⚠️ Critical Rules
+
+### Source of Truth — Do NOT Fetch from GitHub
+
+This file and its reference docs (`references/*.md`) are the **complete reference** for weedbox module development. They contain all necessary patterns, code examples, and best practices. **DO NOT browse GitHub repositories** to look up weedbox module source code.
 
 ## ⚠️ Common Mistakes (DO NOT)
 
