@@ -56,6 +56,7 @@ When user requests to "add XXX feature/module", check existing libraries first:
 - `permissions` - Builtin permission definitions and extension API
 - `user_apis` - REST API handlers for user management
 - `auth_apis` - REST API handlers for login/refresh/logout
+- `role_apis` - REST API handlers for role/resource management
 - `http_token_validator` - Optional global JWT validation middleware
 
 ---

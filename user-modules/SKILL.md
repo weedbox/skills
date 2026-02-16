@@ -8,11 +8,12 @@ description: |
   Use when: adding user management, JWT authentication (login/refresh/logout), role-based access control,
   permission-protected REST APIs, password management, or token validation middleware to weedbox projects.
   Covers: user CRUD, bcrypt password hashing, JWT access/refresh tokens, RBAC with privy,
-  extensible permissions, REST API endpoints, two-layer auth middleware.
+  extensible permissions, REST API endpoints, two-layer auth middleware, role management APIs.
   Keywords: user-modules, user management, authentication, JWT, refresh token, RBAC, permissions,
   login, logout, password, access control, middleware, privy, bcrypt, UUID v7,
   user CRUD, role, session, token rotation, auth middleware, 使用者, 權限, 登入,
-  user module, auth module, rbac module, permission check, protected API.
+  user module, auth module, rbac module, permission check, protected API,
+  role API, role CRUD, role management, assign permission, resource browsing, 角色, 角色管理.
 ---
 
 # User Modules Reference
@@ -36,6 +37,7 @@ This skill provides usage instructions for all modules in `github.com/weedbox/us
 |--------|-------------|---------------|
 | `user_apis` | REST API handlers for user management | [user_apis.md](./modules/user_apis.md) |
 | `auth_apis` | REST API handlers for login/refresh/logout | [auth_apis.md](./modules/auth_apis.md) |
+| `role_apis` | REST API handlers for role/resource management | [role_apis.md](./modules/role_apis.md) |
 
 ### Optional
 
@@ -86,6 +88,7 @@ auth.Module("auth"),       // 3. Auth third (depends on user + rbac)
 // API modules (depend on auth)
 user_apis.Module("user_apis"),
 auth_apis.Module("auth_apis"),
+role_apis.Module("role_apis"),
 http_token_validator.Module("http_token_validator"),  // optional
 ```
 
@@ -109,6 +112,7 @@ import (
     "github.com/weedbox/user-modules/auth_apis"
     "github.com/weedbox/user-modules/http_token_validator"
     "github.com/weedbox/user-modules/rbac"
+    "github.com/weedbox/user-modules/role_apis"
     "github.com/weedbox/user-modules/user"
     "github.com/weedbox/user-modules/user_apis"
 )
@@ -128,6 +132,7 @@ func loadModules() ([]fx.Option, error) {
         http_token_validator.Module("http_token_validator"),
         user_apis.Module("user_apis"),
         auth_apis.Module("auth_apis"),
+        role_apis.Module("role_apis"),
     }
     return modules, nil
 }
@@ -137,7 +142,7 @@ This gives you:
 - A default `admin` user (username: `admin`, password: `1qaz@WSX`)
 - Two builtin roles: `admin`, `user`
 - JWT-based authentication with access/refresh token pairs
-- REST API endpoints for user management and authentication
+- REST API endpoints for user management, authentication, and role/resource management
 - Global token validation on all HTTP routes
 
 ### Configuration
@@ -174,6 +179,7 @@ database.DatabaseConnector (from common-modules)
               |
               +---> user_apis (+ http_server + user.UserManager)
               +---> auth_apis (+ http_server)
+              +---> role_apis (+ http_server + rbac.RBACManager)
               +---> http_token_validator (+ http_server) [optional]
 ```
 
@@ -200,6 +206,20 @@ database.DatabaseConnector (from common-modules)
 | DELETE | `/apis/v1/user/:id` | `user.delete` | Delete a user |
 | PUT | `/apis/v1/user/:id/password` | `user.password.update` | Update user password |
 | POST | `/apis/v1/user/authenticate` | `user.read` | Authenticate credentials |
+
+### Role Management (`role_apis`)
+
+| Method | Path | Permission | Description |
+|--------|------|------------|-------------|
+| GET | `/apis/v1/roles` | `role.list` | List all roles |
+| POST | `/apis/v1/role` | `role.create` | Create a new role |
+| GET | `/apis/v1/role/:key` | `role.read` | Get role by key |
+| PUT | `/apis/v1/role/:key` | `role.update` | Update a role |
+| DELETE | `/apis/v1/role/:key` | `role.delete` | Delete a role |
+| POST | `/apis/v1/role/:key/permissions` | `role.update` | Assign permissions to a role |
+| DELETE | `/apis/v1/role/:key/permissions` | `role.update` | Remove permissions from a role |
+| GET | `/apis/v1/resources` | `role.read` | List all top-level resources |
+| GET | `/apis/v1/resource/*path` | `role.read` | Get a specific resource by path |
 
 ---
 

@@ -551,6 +551,7 @@ package main
 | `auth` | `auth.Module("auth")` | load | JWT authentication and middleware |
 | `user_apis` | `user_apis.Module("user_apis")` | load | User REST API endpoints |
 | `auth_apis` | `auth_apis.Module("auth_apis")` | load | Auth REST API endpoints |
+| `role_apis` | `role_apis.Module("role_apis")` | load | Role/resource REST API endpoints |
 | `http_token_validator` | `http_token_validator.Module("scope")` | load | Global JWT validation (optional) |
 
 See [user-modules skill](../user-modules/SKILL.md) for detailed documentation.

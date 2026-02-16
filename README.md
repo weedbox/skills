@@ -54,7 +54,7 @@ Reference for `github.com/weedbox/user-modules` — reusable modules for user ma
 - User CRUD with bcrypt password hashing and UUID v7 IDs
 - JWT authentication with refresh token rotation
 - Role-based access control powered by privy
-- Ready-to-use REST API endpoints for user and auth
+- Ready-to-use REST API endpoints for user, auth, and role/resource management
 - Extensible permission system with merge API
 - Optional global JWT validation middleware
 
@@ -166,6 +166,7 @@ skills/
         ├── auth.md                           # JWT auth and middleware
         ├── user_apis.md                      # User REST API endpoints
         ├── auth_apis.md                      # Auth REST API endpoints
+        ├── role_apis.md                      # Role/resource REST API endpoints
         └── http_token_validator.md           # Global JWT validation middleware
 ```
 

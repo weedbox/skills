@@ -34,6 +34,16 @@ Sub-resource: **password**
 | logout | `auth.logout` | User logout |
 | refresh | `auth.refresh` | Refresh token |
 
+### role
+
+| Action | Permission String | Description |
+|--------|-------------------|-------------|
+| create | `role.create` | Create a new role |
+| read | `role.read` | Read role details and browse resources |
+| update | `role.update` | Update role and manage permissions |
+| delete | `role.delete` | Delete a role |
+| list | `role.list` | List roles |
+
 ## Builtin Roles
 
 | Role | Description | Permissions |
@@ -49,6 +59,7 @@ import "github.com/weedbox/user-modules/permissions"
 // Resource keys
 permissions.ResourceUser  // "user"
 permissions.ResourceAuth  // "auth"
+permissions.ResourceRole  // "role"
 
 // User permissions
 permissions.PermUserCreate         // "user.create"
@@ -62,6 +73,13 @@ permissions.PermUserPasswordUpdate // "user.password.update"
 permissions.PermAuthLogin   // "auth.login"
 permissions.PermAuthLogout  // "auth.logout"
 permissions.PermAuthRefresh // "auth.refresh"
+
+// Role permissions
+permissions.PermRoleCreate // "role.create"
+permissions.PermRoleRead   // "role.read"
+permissions.PermRoleUpdate // "role.update"
+permissions.PermRoleDelete // "role.delete"
+permissions.PermRoleList   // "role.list"
 ```
 
 ## Standard CRUD Actions

@@ -100,6 +100,7 @@ Custom resources and roles are **merged** with the builtins (`user`, `auth`, `ad
 |--------|-----------|-------------|
 | `CreateRole` | `(key string, config privy.RoleConfig) (*privy.Role, error)` | Create a new role |
 | `GetRole` | `(key string) (*privy.Role, error)` | Get a role by key |
+| `UpdateRole` | `(key string, config privy.RoleConfig) (*privy.Role, error)` | Update an existing role |
 | `ListRoles` | `() ([]privy.Role, error)` | List all roles |
 | `DeleteRole` | `(key string) error` | Delete a role |
 | `AssignPermissions` | `(roleKey string, permissions []string) error` | Add permissions to a role |
@@ -134,3 +135,4 @@ func (m *MyModule) checkAccess(roles []string) bool {
 
 - [permissions](./permissions.md) - Permission definitions consumed by this module
 - [auth](./auth.md) - Auth module that uses RBAC for permission checks
+- [role_apis](./role_apis.md) - REST API handlers for role and resource management

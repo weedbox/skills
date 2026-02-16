@@ -182,6 +182,7 @@ Available from `github.com/weedbox/user-modules`:
 | `permissions` | (plain package) | Permission definitions |
 | `user_apis` | `user_apis.Module("user_apis")` | User REST endpoints |
 | `auth_apis` | `auth_apis.Module("auth_apis")` | Auth REST endpoints |
+| `role_apis` | `role_apis.Module("role_apis")` | Role/resource REST endpoints |
 | `http_token_validator` | `http_token_validator.Module("scope")` | Global JWT middleware |
 
 See [user-modules skill](../user-modules/SKILL.md) for detailed documentation.
