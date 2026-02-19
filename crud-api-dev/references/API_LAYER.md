@@ -145,6 +145,11 @@ type ListResponse struct {
     Keywords   string           `json:"keywords,omitempty"`
     Resources  []*ResourceEntry `json:"resources"`
 }
+
+// ErrorResponse error response
+type ErrorResponse struct {
+    Error string `json:"error" example:"error message"`
+}
 ```
 
 ## 2. Module Definition (`module.go`)
@@ -235,17 +240,20 @@ import (
 )
 
 // create creates a resource
-// @Summary      Create resource
-// @Description  Create a new resource in the specified workspace
-// @Tags         resources
-// @Accept       json
-// @Produce      json
-// @Param        workspace_id  path      string              true  "Workspace ID"
-// @Param        request       body      CreateRequestBody   true  "Create request"
-// @Success      201           {object}  CreateResponse
-// @Failure      400           {object}  object{error=string}
-// @Failure      409           {object}  object{error=string}
-// @Router       /v1/w/{workspace_id}/resource [post]
+//
+//	@Summary		Create resource
+//	@Description	Create a new resource in the specified workspace
+//	@Tags			Resources
+//	@Accept			json
+//	@Produce		json
+//	@Param			workspace_id	path		string				true	"Workspace ID"
+//	@Param			body			body		CreateRequestBody	true	"Create request"
+//	@Success		201				{object}	CreateResponse
+//	@Failure		400				{object}	ErrorResponse
+//	@Failure		409				{object}	ErrorResponse
+//	@Failure		500				{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/apis/v1/w/{workspace_id}/resource [post]
 func (m *MyResourceAPIs) create(c *gin.Context) {
     var req CreateRequest
 
@@ -290,15 +298,19 @@ func (m *MyResourceAPIs) create(c *gin.Context) {
 }
 
 // get retrieves a resource
-// @Summary      Get resource
-// @Description  Get a resource by ID
-// @Tags         resources
-// @Produce      json
-// @Param        workspace_id  path      string  true  "Workspace ID"
-// @Param        id            path      string  true  "Resource ID"
-// @Success      200           {object}  GetResponse
-// @Failure      404           {object}  object{error=string}
-// @Router       /v1/w/{workspace_id}/resource/{id} [get]
+//
+//	@Summary		Get resource
+//	@Description	Get a resource by ID
+//	@Tags			Resources
+//	@Produce		json
+//	@Param			workspace_id	path		string	true	"Workspace ID"
+//	@Param			id				path		string	true	"Resource ID"
+//	@Success		200				{object}	GetResponse
+//	@Failure		400				{object}	ErrorResponse
+//	@Failure		404				{object}	ErrorResponse
+//	@Failure		500				{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/apis/v1/w/{workspace_id}/resource/{id} [get]
 func (m *MyResourceAPIs) get(c *gin.Context) {
     var req GetRequest
 
@@ -326,18 +338,21 @@ func (m *MyResourceAPIs) get(c *gin.Context) {
 }
 
 // update updates a resource
-// @Summary      Update resource
-// @Description  Update a resource by ID
-// @Tags         resources
-// @Accept       json
-// @Produce      json
-// @Param        workspace_id  path      string              true  "Workspace ID"
-// @Param        id            path      string              true  "Resource ID"
-// @Param        request       body      UpdateRequestBody   true  "Update request"
-// @Success      200           {object}  UpdateResponse
-// @Failure      400           {object}  object{error=string}
-// @Failure      404           {object}  object{error=string}
-// @Router       /v1/w/{workspace_id}/resource/{id} [put]
+//
+//	@Summary		Update resource
+//	@Description	Update a resource by ID
+//	@Tags			Resources
+//	@Accept			json
+//	@Produce		json
+//	@Param			workspace_id	path		string				true	"Workspace ID"
+//	@Param			id				path		string				true	"Resource ID"
+//	@Param			body			body		UpdateRequestBody	true	"Update request"
+//	@Success		200				{object}	UpdateResponse
+//	@Failure		400				{object}	ErrorResponse
+//	@Failure		404				{object}	ErrorResponse
+//	@Failure		500				{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/apis/v1/w/{workspace_id}/resource/{id} [put]
 func (m *MyResourceAPIs) update(c *gin.Context) {
     var req UpdateRequest
 
@@ -378,15 +393,19 @@ func (m *MyResourceAPIs) update(c *gin.Context) {
 }
 
 // delete deletes a resource
-// @Summary      Delete resource
-// @Description  Delete a resource by ID
-// @Tags         resources
-// @Produce      json
-// @Param        workspace_id  path      string  true  "Workspace ID"
-// @Param        id            path      string  true  "Resource ID"
-// @Success      200           {object}  DeleteResponse
-// @Failure      404           {object}  object{error=string}
-// @Router       /v1/w/{workspace_id}/resource/{id} [delete]
+//
+//	@Summary		Delete resource
+//	@Description	Delete a resource by ID
+//	@Tags			Resources
+//	@Produce		json
+//	@Param			workspace_id	path		string	true	"Workspace ID"
+//	@Param			id				path		string	true	"Resource ID"
+//	@Success		200				{object}	DeleteResponse
+//	@Failure		400				{object}	ErrorResponse
+//	@Failure		404				{object}	ErrorResponse
+//	@Failure		500				{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/apis/v1/w/{workspace_id}/resource/{id} [delete]
 func (m *MyResourceAPIs) delete(c *gin.Context) {
     var req DeleteRequest
 
@@ -414,20 +433,24 @@ func (m *MyResourceAPIs) delete(c *gin.Context) {
 }
 
 // list lists resources with pagination
-// @Summary      List resources
-// @Description  List all resources in workspace with pagination, search, and sorting
-// @Tags         resources
-// @Produce      json
-// @Param        workspace_id   path      string  true   "Workspace ID"
-// @Param        page           query     int     false  "Page number"        default(1)
-// @Param        page_size      query     int     false  "Page size"          default(10)
-// @Param        keywords       query     string  false  "Search keywords"
-// @Param        search_fields  query     string  false  "Search fields (comma-separated)"
-// @Param        orderby        query     string  false  "Order by fields (comma-separated)"
-// @Param        order          query     int     false  "Sort direction (1=asc, -1=desc)"  default(1)
-// @Param        status         query     string  false  "Status filter"
-// @Success      200            {object}  ListResponse
-// @Router       /v1/w/{workspace_id}/resources [get]
+//
+//	@Summary		List resources
+//	@Description	List all resources in workspace with pagination, search, and sorting
+//	@Tags			Resources
+//	@Produce		json
+//	@Param			workspace_id	path		string	true	"Workspace ID"
+//	@Param			page			query		int		false	"Page number"						default(1)
+//	@Param			page_size		query		int		false	"Page size"							default(10)
+//	@Param			keywords		query		string	false	"Search keywords"
+//	@Param			search_fields	query		string	false	"Search fields (comma-separated)"
+//	@Param			orderby			query		string	false	"Order by fields (comma-separated)"
+//	@Param			order			query		int		false	"Sort direction (1=asc, -1=desc)"	default(1)
+//	@Param			status			query		string	false	"Status filter"
+//	@Success		200				{object}	ListResponse
+//	@Failure		400				{object}	ErrorResponse
+//	@Failure		500				{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/apis/v1/w/{workspace_id}/resources [get]
 func (m *MyResourceAPIs) list(c *gin.Context) {
     var req ListRequest
 
@@ -600,13 +623,27 @@ func (m *MyAPIs) handler(c *gin.Context) {
 }
 ```
 
+## Swagger Annotation Format
+
+All handler annotations must use the tab-indented format. Key rules:
+
+- **Format**: `//\t@Tag\t\tValue` (tabs between `//` and `@`, and between tag and value)
+- **First line**: `// functionName description` followed by an empty `//` line
+- **`@Param body`**: Reference `*RequestBody` struct, not the outer `*Request`
+- **`@Accept json`**: Only on POST/PUT (handlers with a body); omit for GET/DELETE
+- **`@Router`**: Full path with `/apis/v1` prefix; path params use `{id}` not `:id`
+- **`@Security BearerAuth`**: Include on authenticated endpoints
+- **`ErrorResponse`**: Define in `codec.go`; use instead of `object{error=string}`
+
+For complete annotation conventions, see [../../common-modules/modules/swagger.md](../../common-modules/modules/swagger.md).
+
 ## Development Checklist
 
 - [ ] Create `pkg/myresource_apis/` directory
 - [ ] Define request structures with URI/Body/Query separation `codec.go`
-- [ ] Define response structures `codec.go`
+- [ ] Define response structures and `ErrorResponse` `codec.go`
 - [ ] Implement module definition (Method 2) `module.go`
 - [ ] Implement HTTP handlers with proper binding order `apis.go`
-- [ ] Add Swagger annotations
+- [ ] Add Swagger annotations (tab-indented format)
 - [ ] Register module in `modules.go`
-- [ ] Run `swag init .` to update docs
+- [ ] Run `swag init --parseDependency --parseDependencyLevel 3` to update docs

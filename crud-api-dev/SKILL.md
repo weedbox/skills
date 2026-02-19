@@ -256,7 +256,7 @@ func loadModules() ([]fx.Option, error) {
 - [ ] Implement HTTP handlers with proper binding order `apis.go`
 - [ ] Add Swagger annotations
 - [ ] Register module in `modules.go`
-- [ ] Run `swag init .` to update docs
+- [ ] Run `swag init --parseDependency --parseDependencyLevel 3` to update docs
 
 ---
 

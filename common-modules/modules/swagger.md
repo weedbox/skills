@@ -41,9 +41,21 @@ go install github.com/swaggo/swag/cmd/swag@latest
 
 Add annotations to your main.go and handlers, then generate:
 
+**Basic** (all handlers in same project):
+
 ```bash
 swag init
 ```
+
+**With external modules** (using external weedbox modules like `user-modules`):
+
+```bash
+swag init --parseDependency --parseDependencyLevel 3
+```
+
+The `--parseDependency` flag tells swag to scan Go dependencies for swagger annotations. This is **required** when using external weedbox modules that contain annotated handlers.
+
+> **Note**: External library modules (e.g. `user-modules`) do NOT run `swag init`, do NOT have a `docs/` directory, and do NOT depend on swag. They only contain pure Go comment annotations on their handler functions.
 
 This creates a `docs/` directory with swagger specification files.
 
@@ -130,6 +142,11 @@ import (
 // @host            localhost:8080
 // @BasePath        /api/v1
 
+//	@securityDefinitions.apikey	BearerAuth
+//	@in							header
+//	@name						Authorization
+//	@description				Enter your bearer token as: Bearer <token>
+
 var config *configs.Config
 
 func main() {
@@ -167,21 +184,119 @@ func initModules() ([]fx.Option, error) {
 
 ### Handler with Swagger Annotations
 
+**GET handler** (no `@Accept json` since there is no request body):
+
 ```go
-// GetUser godoc
-// @Summary      Get user by ID
-// @Description  Returns a single user
-// @Tags         Users
-// @Accept       json
-// @Produce      json
-// @Param        id   path      int  true  "User ID"
-// @Success      200  {object}  User
-// @Failure      404  {object}  ErrorResponse
-// @Router       /users/{id} [get]
-func (h *Handler) GetUser(c *gin.Context) {
+// get retrieves a resource
+//
+//	@Summary		Get a resource
+//	@Description	Retrieve a resource by ID
+//	@Tags			Resource
+//	@Produce		json
+//	@Param			id	path		string	true	"Resource ID"
+//	@Success		200	{object}	GetResponse
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/apis/v1/resource/{id} [get]
+func (m *MyResourceAPIs) get(c *gin.Context) {
     // Implementation
 }
 ```
+
+**POST handler** (includes `@Accept json` for request body):
+
+```go
+// create creates a resource
+//
+//	@Summary		Create a resource
+//	@Description	Create a new resource
+//	@Tags			Resource
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		CreateRequestBody	true	"Creation payload"
+//	@Success		201		{object}	CreateResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		409		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/apis/v1/resource [post]
+func (m *MyResourceAPIs) create(c *gin.Context) {
+    // Implementation
+}
+```
+
+## Annotation Conventions
+
+| Item | Rule |
+|------|------|
+| Format | Tab-indented: `//\t@Tag\t\tValue` (use tabs, not spaces) |
+| First line | `// functionName description` (swag uses this for parsing) |
+| Blank line | Empty comment `//` between first line and annotations |
+| `@Router` | Full path with `/apis/v1` prefix; path params use `{id}` not `:id` |
+| `@Param body` | Reference `*RequestBody` struct (not the outer `*Request` wrapper) |
+| `@Accept json` | Only on POST/PUT handlers that have a request body; omit for GET/DELETE |
+| `@Produce json` | Always include on all handlers |
+| `@Security BearerAuth` | Include on authenticated endpoints; omit on public endpoints (e.g. login) |
+| `ErrorResponse` | Each API package defines its own `ErrorResponse` struct in `codec.go` |
+
+### ErrorResponse Convention
+
+Each API package should define an `ErrorResponse` struct for swagger to reference:
+
+```go
+// ErrorResponse error response
+type ErrorResponse struct {
+	Error string `json:"error" example:"error message"`
+}
+```
+
+Use `ErrorResponse` (not `object{error=string}`) in all `@Failure` annotations.
+
+## External Module Integration
+
+This section explains how swagger works when API handlers live in an **external Go module** (library) rather than in the application project itself.
+
+### For Module Authors (developing a reusable library like `user-modules`)
+
+- Add swag annotations as pure Go comments on handler functions
+- Define `ErrorResponse` struct in each API package's `codec.go`
+- Do **NOT** run `swag init` — the library has no `main.go` to parse
+- Do **NOT** create a `docs/` directory
+- Do **NOT** add any swag Go dependency — annotations are just comments
+
+### For Project Developers (building an application that uses external modules)
+
+1. Add general API info and security definitions in `main.go`:
+
+```go
+// @title           My API
+// @version         1.0
+// @description     API documentation
+//
+//	@securityDefinitions.apikey	BearerAuth
+//	@in							header
+//	@name						Authorization
+//	@description				Enter your bearer token as: Bearer <token>
+```
+
+2. Generate docs with dependency parsing:
+
+```bash
+swag init --parseDependency --parseDependencyLevel 3
+```
+
+3. Import generated docs and load the swagger module:
+
+```go
+import _ "your-project/docs"
+
+// In module setup:
+swagger.Module("swagger"),
+```
+
+The `--parseDependency` flag tells swag to scan all Go module dependencies for annotations, producing a unified Swagger spec that includes both local and external module endpoints.
 
 ## Scalar UI Features
 
