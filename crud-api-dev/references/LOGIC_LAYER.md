@@ -400,6 +400,38 @@ func (m *MyResourceManager) toResource(model *models.MyResource) *Resource {
 }
 ```
 
+## GORM Error Handling Best Practices
+
+**Always use `errors.Is()` with GORM's built-in sentinel errors** — never match error message strings, as they differ across database backends (SQLite, PostgreSQL, MySQL).
+
+```go
+import (
+    "errors"
+    "gorm.io/gorm"
+)
+
+// ✅ GOOD — works with all database backends
+if errors.Is(err, gorm.ErrDuplicatedKey) {
+    return nil, ErrNameExists
+}
+if errors.Is(err, gorm.ErrRecordNotFound) {
+    return nil, ErrNotFound
+}
+
+// ❌ BAD — depends on specific database backend error messages
+if strings.Contains(err.Error(), "UNIQUE constraint") { ... }   // SQLite only
+if strings.Contains(err.Error(), "duplicate key") { ... }       // PostgreSQL only
+if strings.Contains(err.Error(), "Duplicate entry") { ... }     // MySQL only
+```
+
+### Common GORM Sentinel Errors
+
+| Error | When | Available Since |
+|-------|------|-----------------|
+| `gorm.ErrRecordNotFound` | `First()` / `Last()` / `Take()` finds no record | v2.0.0 |
+| `gorm.ErrDuplicatedKey` | INSERT/UPDATE violates unique constraint | v1.25.0 |
+| `gorm.ErrForeignKeyViolated` | INSERT/UPDATE violates foreign key constraint | v1.25.0 |
+
 ## Development Checklist
 
 - [ ] Create `pkg/myresource/` directory
