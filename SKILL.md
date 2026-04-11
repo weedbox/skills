@@ -44,6 +44,7 @@ When user requests to "add XXX feature/module", check existing libraries first:
 - `swagger` - API documentation
 - `postgres_connector` / `sqlite_connector` - Database
 - `nats_connector` - Message queue
+- `scheduler` - Job scheduler (GORM / NATS JetStream)
 - `redis_connector` - Cache
 - `mailer` - Email sending
 - `logger` - Logging

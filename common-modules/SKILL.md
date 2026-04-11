@@ -50,6 +50,12 @@ This skill provides detailed usage instructions for all modules in `github.com/w
 | `nats_connector` | NATS client with JetStream and work queue | [nats_connector.md](./modules/nats_connector.md) |
 | `nats_jetstream_server` | Embedded NATS JetStream server | [nats_jetstream_server.md](./modules/nats_jetstream_server.md) |
 
+### Scheduling
+
+| Module | Description | Documentation |
+|--------|-------------|---------------|
+| `scheduler` | Job scheduler with GORM (single-node) or NATS JetStream backend | [scheduler.md](./modules/scheduler.md) |
+
 ### Cache
 
 | Module | Description | Documentation |
@@ -175,7 +181,7 @@ Modules should be loaded in three phases:
 | Phase | Purpose | Modules |
 |-------|---------|---------|
 | **1. Preload** | Configuration and logging | `configs`, `logger` |
-| **2. Load** | Application modules | `http_server`, `swagger`, `healthcheck_apis`, `database`, `nats_connector`, `redis_connector`, `mailer`, custom modules |
+| **2. Load** | Application modules | `http_server`, `swagger`, `healthcheck_apis`, `database`, `nats_connector`, `scheduler`, `redis_connector`, `mailer`, custom modules |
 | **3. After** | Lifecycle management | `daemon` (must be last) |
 
 **Important**: The `daemon` module must be placed **last** because it marks the service as ready after all other modules initialize.
