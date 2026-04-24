@@ -2,18 +2,15 @@
 name: user-modules
 description: |
   Priority: HIGH — Self-contained reference. This file and its sub-files (modules/*.md) contain
-  ALL necessary code examples, API references, and implementation patterns for user-modules.
-  DO NOT fetch source code from GitHub — everything needed is documented here.
-  Reference guide for weedbox/user-modules - reusable modules for user management, authentication, and RBAC.
-  Use when: adding user management, JWT authentication (login/refresh/logout), role-based access control,
-  permission-protected REST APIs, password management, or token validation middleware to weedbox projects.
+  the code examples, API references, and implementation patterns needed for weedbox/user-modules.
+  Do not fetch source code from GitHub when this documentation covers the task.
+  Use when adding user management, JWT authentication, RBAC, protected REST APIs,
+  password management, token validation middleware, or role management to weedbox projects.
   Covers: user CRUD, bcrypt password hashing, JWT access/refresh tokens, RBAC with privy,
-  extensible permissions, REST API endpoints, two-layer auth middleware, role management APIs.
-  Keywords: user-modules, user management, authentication, JWT, refresh token, RBAC, permissions,
-  login, logout, password, access control, middleware, privy, bcrypt, UUID v7,
-  user CRUD, role, session, token rotation, auth middleware, 使用者, 權限, 登入,
-  user module, auth module, rbac module, permission check, protected API,
-  role API, role CRUD, role management, assign permission, resource browsing, 角色, 角色管理.
+  extensible permissions, auth middleware, and role APIs.
+  Keywords: user-modules, user management, authentication, JWT, refresh token, RBAC,
+  permissions, login, logout, password, access control, middleware, privy, bcrypt,
+  UUID v7, role management, protected API, auth middleware, 使用者, 權限, 登入, 角色管理.
 ---
 
 # User Modules Reference
