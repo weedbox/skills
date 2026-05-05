@@ -1,6 +1,6 @@
 # sqlite_connector
 
-SQLite connector implementing `database.DatabaseConnector` with GORM.
+SQLite connector implementing `database.DatabaseConnector` with GORM. Supports WAL mode, connection pooling, and optional read/write splitting via `gorm.io/plugin/dbresolver`.
 
 ## Installation
 
@@ -25,8 +25,14 @@ func loadModules() ([]fx.Option, error) {
 | Parameter | Default | Purpose |
 |-----------|---------|---------|
 | `{scope}.path` | `./data.db` | Database file path |
-| `{scope}.loglevel` | `4` | GORM log level |
+| `{scope}.loglevel` | `2` (Error) | GORM log level |
 | `{scope}.debug_mode` | `false` | Enable detailed SQL logging |
+| `{scope}.enable_wal` | `true` | Enable WAL (Write-Ahead Logging) journal mode |
+| `{scope}.busy_timeout` | `5000` | Milliseconds to wait when DB is locked |
+| `{scope}.max_open_conns` | `10` | Max open connections (replica pool when split is on) |
+| `{scope}.max_idle_conns` | `5` | Max idle connections (replica pool when split is on) |
+| `{scope}.conn_max_lifetime` | `3600` | Connection max lifetime in seconds |
+| `{scope}.enable_read_write_split` | `true` | Enable read/write splitting via dbresolver |
 
 ### GORM Log Levels
 
@@ -42,16 +48,28 @@ func loadModules() ([]fx.Option, error) {
 ```toml
 [database]
 path = "./data/app.db"
-loglevel = 4
+loglevel = 2
 debug_mode = false
+enable_wal = true
+busy_timeout = 5000
+max_open_conns = 10
+max_idle_conns = 5
+conn_max_lifetime = 3600
+enable_read_write_split = true
 ```
 
 ### Environment Variables
 
 ```bash
 export DATABASE_PATH=./data/app.db
-export DATABASE_LOGLEVEL=4
+export DATABASE_LOGLEVEL=2
 export DATABASE_DEBUG_MODE=false
+export DATABASE_ENABLE_WAL=true
+export DATABASE_BUSY_TIMEOUT=5000
+export DATABASE_MAX_OPEN_CONNS=10
+export DATABASE_MAX_IDLE_CONNS=5
+export DATABASE_CONN_MAX_LIFETIME=3600
+export DATABASE_ENABLE_READ_WRITE_SPLIT=true
 ```
 
 ## Usage in Modules
@@ -117,12 +135,36 @@ path = "./data/nested/deep/app.db"
 
 ### WAL Mode
 
-SQLite uses WAL (Write-Ahead Logging) mode by default for better concurrency:
+WAL mode is enabled by default via the `enable_wal` config (applied through the DSN as `_journal_mode=WAL`). It allows readers and writers to operate concurrently without blocking each other. Only disable it (`enable_wal = false`) when you need rollback journal mode for specific compatibility reasons.
 
-```go
-// Enable WAL mode (usually automatic)
-db.Exec("PRAGMA journal_mode=WAL;")
-```
+The connector also enables foreign keys (`_foreign_keys=on`) and applies `_busy_timeout` automatically — no manual `PRAGMA` calls are required.
+
+### Read/Write Splitting
+
+Enabled by default (`enable_read_write_split = true`). The connector wires a single `*gorm.DB` to two separate `*sql.DB` pools using GORM's [`dbresolver`](https://gorm.io/docs/dbresolver.html) plugin:
+
+- **Primary (write)** — uses the original DSN. Pool is forced to `max_open_conns=1` and `max_idle_conns=1` so writes are serialized at the Go layer, eliminating one source of `SQLITE_BUSY` errors.
+- **Replicas (read)** — opens the same database file with `mode=ro` appended. Pool size follows the configured `max_open_conns` / `max_idle_conns`, allowing many concurrent readers.
+
+GORM routes `SELECT` queries to the replica pool and all mutations to the primary, so application code does not need to change. Set `enable_read_write_split = false` to fall back to the legacy single-pool behavior.
+
+> Read/write splitting only makes sense when `enable_wal = true` — WAL is what allows readers and writers to operate concurrently against the same SQLite file.
+
+### Connection Pool Behavior
+
+- When `enable_read_write_split = false`: a single pool is sized by `max_open_conns` / `max_idle_conns`.
+- When `enable_read_write_split = true`: the **primary (write) pool is forced to 1 connection** regardless of config, while `max_open_conns` / `max_idle_conns` apply to the **replica (read) pool only**.
+- `conn_max_lifetime` applies to both pools.
+
+## Debug Mode
+
+When `debug_mode = true`:
+- Log level is forced to Info (all SQL queries logged)
+- Parameterized queries are logged with actual values
+- Colorful output is enabled
+- `RecordNotFound` errors are shown (not silenced)
+
+Useful for development; disable in production.
 
 ## Testing with SQLite
 
@@ -168,7 +210,7 @@ Your application code using `database.DatabaseConnector` remains unchanged.
 
 | Feature | SQLite | PostgreSQL |
 |---------|--------|------------|
-| Concurrent writes | Limited | Excellent |
+| Concurrent writes | Serialized (1 writer) | Excellent |
 | JSON operators | Basic | Full JSONB |
 | Full-text search | FTS5 | Built-in |
 | Array types | No | Yes |
