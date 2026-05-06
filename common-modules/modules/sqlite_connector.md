@@ -30,9 +30,17 @@ func loadModules() ([]fx.Option, error) {
 | `{scope}.enable_wal` | `true` | Enable WAL (Write-Ahead Logging) journal mode |
 | `{scope}.busy_timeout` | `5000` | Milliseconds to wait when DB is locked |
 | `{scope}.max_open_conns` | `10` | Max open connections (replica pool when split is on) |
-| `{scope}.max_idle_conns` | `5` | Max idle connections (replica pool when split is on) |
+| `{scope}.max_idle_conns` | `1` | Max idle connections (replica pool when split is on) |
 | `{scope}.conn_max_lifetime` | `3600` | Connection max lifetime in seconds |
+| `{scope}.conn_max_idle_time` | `30` | Seconds an idle connection can stay before being closed |
 | `{scope}.enable_read_write_split` | `true` | Enable read/write splitting via dbresolver |
+| `{scope}.write_max_open_conns` | `10` | Max open connections in the primary (write) pool |
+| `{scope}.write_max_idle_conns` | `1` | Max idle connections in the primary (write) pool |
+| `{scope}.synchronous` | `""` (SQLite default) | `PRAGMA synchronous`: `OFF`, `NORMAL`, `FULL`, `EXTRA` |
+| `{scope}.cache_size` | `0` (SQLite default) | `PRAGMA cache_size`: negative = KB (e.g. `-65536` = 64 MiB), positive = pages |
+| `{scope}.locking_mode` | `""` (SQLite default `NORMAL`) | `PRAGMA locking_mode`: `NORMAL` or `EXCLUSIVE`. `EXCLUSIVE` is single-connection only |
+
+> `max_idle_conns` and `write_max_idle_conns` default to `1` so idle connections do not pin WAL frames and block `wal_checkpoint`. `conn_max_idle_time` works with this — see [Connection Pool Behavior](#connection-pool-behavior).
 
 ### GORM Log Levels
 
@@ -53,9 +61,15 @@ debug_mode = false
 enable_wal = true
 busy_timeout = 5000
 max_open_conns = 10
-max_idle_conns = 5
+max_idle_conns = 1
 conn_max_lifetime = 3600
+conn_max_idle_time = 30
 enable_read_write_split = true
+write_max_open_conns = 10
+write_max_idle_conns = 1
+synchronous = ""
+cache_size = 0
+locking_mode = ""
 ```
 
 ### Environment Variables
@@ -67,9 +81,15 @@ export DATABASE_DEBUG_MODE=false
 export DATABASE_ENABLE_WAL=true
 export DATABASE_BUSY_TIMEOUT=5000
 export DATABASE_MAX_OPEN_CONNS=10
-export DATABASE_MAX_IDLE_CONNS=5
+export DATABASE_MAX_IDLE_CONNS=1
 export DATABASE_CONN_MAX_LIFETIME=3600
+export DATABASE_CONN_MAX_IDLE_TIME=30
 export DATABASE_ENABLE_READ_WRITE_SPLIT=true
+export DATABASE_WRITE_MAX_OPEN_CONNS=10
+export DATABASE_WRITE_MAX_IDLE_CONNS=1
+export DATABASE_SYNCHRONOUS=NORMAL
+export DATABASE_CACHE_SIZE=-65536
+export DATABASE_LOCKING_MODE=
 ```
 
 ## Usage in Modules
@@ -143,18 +163,62 @@ The connector also enables foreign keys (`_foreign_keys=on`) and applies `_busy_
 
 Enabled by default (`enable_read_write_split = true`). The connector wires a single `*gorm.DB` to two separate `*sql.DB` pools using GORM's [`dbresolver`](https://gorm.io/docs/dbresolver.html) plugin:
 
-- **Primary (write)** — uses the original DSN. Pool is forced to `max_open_conns=1` and `max_idle_conns=1` so writes are serialized at the Go layer, eliminating one source of `SQLITE_BUSY` errors.
-- **Replicas (read)** — opens the same database file with `mode=ro` appended. Pool size follows the configured `max_open_conns` / `max_idle_conns`, allowing many concurrent readers.
+- **Primary (write)** — pool size is controlled by `write_max_open_conns` / `write_max_idle_conns` (defaults `10` / `1`). The idle default is `1` because SQLite serializes writes; lower `write_max_open_conns` to `1` to fully serialize writes at the Go layer if you are seeing `SQLITE_BUSY` errors under contention.
+- **Replicas (read)** — pool size follows `max_open_conns` / `max_idle_conns`, allowing many concurrent readers.
 
-GORM routes `SELECT` queries to the replica pool and all mutations to the primary, so application code does not need to change. Set `enable_read_write_split = false` to fall back to the legacy single-pool behavior.
+Both pools open the database with the **same DSN** (including `_journal_mode=WAL`). Routing happens at the SQL operation layer via `dbresolver`: `SELECT` / `First` / `Find` / `Count` / `Pluck` / `Take` / `Scan` go to the replica pool, while `Create` / `Save` / `Update` / `Delete` / `Transaction` / `Raw` / `Exec` go to the primary. Application code does not need to change. Set `enable_read_write_split = false` to fall back to the legacy single-pool behavior.
+
+> **Why no `mode=ro` on the replica DSN**: a `mode=ro` connection cannot create or write the `-shm` file, register read marks in the WAL, or otherwise participate in the WAL protocol — so it would silently miss frames produced by the primary. Routing safety comes from `dbresolver` at the SQL layer, not from the file open mode.
 
 > Read/write splitting only makes sense when `enable_wal = true` — WAL is what allows readers and writers to operate concurrently against the same SQLite file.
 
 ### Connection Pool Behavior
 
-- When `enable_read_write_split = false`: a single pool is sized by `max_open_conns` / `max_idle_conns`.
-- When `enable_read_write_split = true`: the **primary (write) pool is forced to 1 connection** regardless of config, while `max_open_conns` / `max_idle_conns` apply to the **replica (read) pool only**.
-- `conn_max_lifetime` applies to both pools.
+- When `enable_read_write_split = false`: a single pool is sized by `max_open_conns` / `max_idle_conns`. `conn_max_lifetime` and `conn_max_idle_time` apply.
+- When `enable_read_write_split = true`:
+  - Primary (write) pool uses `write_max_open_conns` / `write_max_idle_conns`.
+  - Replica (read) pool uses `max_open_conns` / `max_idle_conns`.
+  - `conn_max_lifetime` and `conn_max_idle_time` apply to both pools.
+- **`conn_max_idle_time` is critical under WAL**: an idle connection holds the read snapshot of its last query and prevents `wal_checkpoint` from advancing past it. Closing idle connections promptly lets WAL frames recycle into the main file. The default `30s` together with low idle defaults (`1`) keeps the WAL bounded.
+
+### PRAGMA Tuning Knobs
+
+These knobs are passed via the DSN and apply to every connection in both pools.
+
+- **`synchronous`** — sets `PRAGMA synchronous`. With WAL, `NORMAL` is safe and significantly cheaper than `FULL` (one fsync per checkpoint instead of one per commit). Use `NORMAL` on slow-fsync storage (NFS, networked PVs); a crash can lose the very last committed transaction but the database remains consistent. `OFF` drops durability further; avoid unless you understand the trade-off.
+- **`cache_size`** — sets `PRAGMA cache_size`. Negative values are KB (e.g. `-65536` = 64 MiB), positive values are pages. A larger cache reduces page reads from disk and is one of the cheapest wins on slow storage.
+- **`locking_mode`** — sets `PRAGMA locking_mode`. `EXCLUSIVE` keeps the database lock held for the connection's lifetime, avoiding repeated lock acquisition syscalls on filesystems with slow/unreliable advisory locks (e.g. NFS). **Only safe with a single connection**: requires `enable_read_write_split=false`, `max_open_conns=1`, `write_max_open_conns=1`. The connector logs a warning at startup if it detects an incompatible combination.
+
+## Running on Slow / Networked Storage (e.g. NFS-backed PV)
+
+SQLite expects a local filesystem with working POSIX advisory locks and fast `fsync`. Networked or shared storage (NFS, some CSI drivers, certain k8s `PersistentVolume` classes) provides neither reliably:
+
+- `fsync` over the network turns every COMMIT into a round-trip-bound operation (often 10–100× slower than local disk).
+- Byte-range advisory locks (used by WAL) can break under contention.
+- The `-shm` shared-memory file used by WAL behaves poorly when the filesystem is not truly local.
+
+**The first thing to check if SQL feels slow on SQLite is the StorageClass** — `kubectl get pvc -n <ns>` then `kubectl get storageclass`. If it routes through NFS / `nfs-csi-driver` / Longhorn-over-network / similar, that is almost certainly the bottleneck and no amount of connector tuning will eliminate it. The proper fix is a local-disk-backed StorageClass (`local-path`, `topolvm`, hostPath with locality), or switching to PostgreSQL.
+
+If you cannot move off networked storage, the following PRAGMAs trade a small amount of durability/concurrency for substantially less fsync pressure:
+
+```toml
+[database]
+# WAL + NORMAL: one fsync per checkpoint, not one per commit. Safe under WAL —
+# you can lose the very last committed transaction on a crash, but the DB
+# remains consistent.
+synchronous = "NORMAL"
+
+# 64 MiB page cache. Cuts how often SQLite has to read pages back from the
+# slow filesystem.
+cache_size = -65536
+
+# Optional, single-connection only: keep the file lock held for the lifetime of
+# the connection so SQLite stops doing per-statement lock dances against NFS.
+# REQUIRES enable_read_write_split=false, max_open_conns=1, write_max_open_conns=1.
+# locking_mode = "EXCLUSIVE"
+```
+
+> `locking_mode=EXCLUSIVE` only works with a single connection holding the database. If `enable_read_write_split=true` or any pool size is greater than `1`, the second connection will block forever or fail with `SQLITE_BUSY`. The connector emits a warning log at startup if it detects this misconfiguration.
 
 ## Debug Mode
 
