@@ -26,37 +26,46 @@ func preloadModules() ([]fx.Option, error) {
 
 | Parameter | Default | Purpose |
 |-----------|---------|---------|
-| `{scope}.host` | `0.0.0.0` | Server bind address |
+| `{scope}.enabled` | `true` | Whether to start the embedded server. Set `false` when connecting to an external NATS server. |
+| `{scope}.host` | `0.0.0.0` | Server bind address (also used as `HTTPHost` and the cluster bind address). |
 | `{scope}.port` | `4222` | Client port |
 | `{scope}.http_port` | `8222` | Monitoring HTTP port |
-| `{scope}.max_connections` | `0` | Max client connections (0 = unlimited) |
-| `{scope}.max_payload` | `1048576` | Max message payload (1MB) |
-| `{scope}.log_level` | `info` | Log level |
+| `{scope}.cluster_port` | `6222` | Cluster listen port (only used when `cluster.enabled=true`) |
+| `{scope}.max_connections` | `65536` | Max client connections |
+| `{scope}.max_payload` | `1048576` | Max message payload in bytes (1 MiB) |
+| `{scope}.write_deadline` | `2s` | Write deadline (Go duration string, e.g. `2s`, `500ms`) |
+| `{scope}.log_level` | `INFO` | `INFO` / `DEBUG` / `TRACE` (uppercase). `DEBUG` enables `opts.Debug`; `TRACE` enables `opts.Trace`. |
 
 ### JetStream Settings
 
 | Parameter | Default | Purpose |
 |-----------|---------|---------|
 | `{scope}.jetstream.enabled` | `true` | Enable JetStream |
-| `{scope}.jetstream.memory_limit` | `1073741824` | Memory limit (1GB) |
-| `{scope}.jetstream.storage_limit` | `10737418240` | Storage limit (10GB) |
-| `{scope}.jetstream.store_dir` | `./data/jetstream` | Storage directory |
+| `{scope}.jetstream.max_memory` | `1073741824` | Memory limit in bytes (1 GiB) |
+| `{scope}.jetstream.max_storage` | `10737418240` | Storage limit in bytes (10 GiB) |
+| `{scope}.jetstream.store_dir` | `./data/jetstream` | Storage directory (auto-created at startup) |
 
 ### Authentication
 
+Auth is gated by `auth.enabled`; the connector chooses token auth first if `auth.token` is set, otherwise username+password.
+
 | Parameter | Default | Purpose |
 |-----------|---------|---------|
+| `{scope}.auth.enabled` | `false` | Master switch for auth |
 | `{scope}.auth.username` | (empty) | Basic auth username |
 | `{scope}.auth.password` | (empty) | Basic auth password |
-| `{scope}.auth.token` | (empty) | Token authentication |
+| `{scope}.auth.token` | (empty) | Token authentication (takes precedence over username/password) |
 
 ### TLS
 
+TLS is gated by `tls.enabled`; `cert_file` and `key_file` are required when enabled. Providing `ca_file` additionally turns on **mutual TLS** (`tls.RequireAndVerifyClientCert`).
+
 | Parameter | Default | Purpose |
 |-----------|---------|---------|
-| `{scope}.tls.cert` | (empty) | Server certificate |
-| `{scope}.tls.key` | (empty) | Server private key |
-| `{scope}.tls.ca` | (empty) | CA certificate |
+| `{scope}.tls.enabled` | `false` | Master switch for TLS |
+| `{scope}.tls.cert_file` | (empty) | Server certificate path |
+| `{scope}.tls.key_file` | (empty) | Server private key path |
+| `{scope}.tls.ca_file` | (empty) | CA certificate path — enables mTLS when set |
 
 ### Clustering
 
@@ -64,41 +73,46 @@ func preloadModules() ([]fx.Option, error) {
 |-----------|---------|---------|
 | `{scope}.cluster.enabled` | `false` | Enable clustering |
 | `{scope}.cluster.name` | (empty) | Cluster name |
-| `{scope}.cluster.host` | (empty) | Cluster bind address |
-| `{scope}.cluster.port` | `6222` | Cluster port |
-| `{scope}.cluster.routes` | (empty) | Cluster routes |
+| `{scope}.cluster.routes` | (empty) | Cluster route URLs, e.g. `["nats://node2:6222"]` |
+
+> The cluster listens on `{scope}.host`:`{scope}.cluster_port` — there is no separate `cluster.host` / `cluster.port` key.
 
 ### TOML Example
 
 ```toml
 [nats_server]
+enabled = true
 host = "0.0.0.0"
 port = 4222
 http_port = 8222
-log_level = "info"
+cluster_port = 6222
+max_connections = 65536
+max_payload = 1048576
+write_deadline = "2s"
+log_level = "INFO"
 
 [nats_server.jetstream]
 enabled = true
-memory_limit = 1073741824    # 1GB
-storage_limit = 10737418240  # 10GB
+max_memory = 1073741824     # 1 GiB
+max_storage = 10737418240   # 10 GiB
 store_dir = "./data/jetstream"
 
 [nats_server.auth]
+enabled = true
 username = "admin"
 password = "secret"
 # OR
-token = "my-secret-token"
+# token = "my-secret-token"
 
 [nats_server.tls]
-cert = "/path/to/server.crt"
-key = "/path/to/server.key"
-ca = "/path/to/ca.crt"
+enabled = true
+cert_file = "/path/to/server.crt"
+key_file = "/path/to/server.key"
+ca_file = "/path/to/ca.crt"   # presence enables mTLS
 
 [nats_server.cluster]
 enabled = true
 name = "my-cluster"
-host = "0.0.0.0"
-port = 6222
 routes = ["nats://node2:6222", "nats://node3:6222"]
 ```
 

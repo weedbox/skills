@@ -60,11 +60,15 @@ daemon.GetHealthStatus() // returns HealthStatus
 ## Health Status Constants
 
 ```go
+type HealthStatus int32
+
 const (
-    HealthStatus_Healthy   HealthStatus = "healthy"
-    HealthStatus_Unhealthy HealthStatus = "unhealthy"
+    HealthStatus_Healthy HealthStatus = iota // 0
+    HealthStatus_Unhealthy                   // 1
 )
 ```
+
+`GetHealthStatus()` returns the current value; the daemon initialises it to `HealthStatus_Healthy` on construction. There is no public setter — modules that need to flag unhealthiness should fail their `OnStart` hook or expose their own status, not mutate the daemon's field directly.
 
 ## Integration with healthcheck_apis
 

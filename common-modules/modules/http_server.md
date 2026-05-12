@@ -26,18 +26,25 @@ func loadModules() ([]fx.Option, error) {
 |-----------|---------|---------|
 | `{scope}.host` | `0.0.0.0` | Listen address |
 | `{scope}.port` | `80` | Listen port |
-| `{scope}.mode` | `test` | Running mode |
-| `{scope}.allow_origins` | `*` | CORS allowed origins |
-| `{scope}.allow_methods` | - | CORS allowed methods |
-| `{scope}.allow_headers` | `Authorization, Accept` | CORS allowed headers |
+| `{scope}.mode` | `test` | Controls whether CORS injects `allow_headers` (only added in `test` mode) |
+| `{scope}.loglevel` | (empty) | Gin mode selector: `test` → `gin.TestMode`, `release` or `prod` → `gin.ReleaseMode`. `prod` also swaps `gin.Default()` for `gin.New()` (no default middleware) |
+| `{scope}.allow_origins` | (empty) | Comma-separated CORS allowed origins. Empty enables `AllowAllOrigins=true` (wildcard) |
+| `{scope}.allow_methods` | (empty) | Comma-separated CORS allowed methods |
+| `{scope}.allow_headers` | `Authorization,Accept` | Comma-separated CORS allowed headers (only applied when `mode=test`) |
 
 ### Running Modes
 
-| Mode | Description |
-|------|-------------|
-| `test` | Development mode with verbose logging |
-| `release` | Production mode with minimal output |
-| `prod` | Same as release |
+`mode` and `loglevel` are **independent** configs despite the overlapping naming:
+
+- `mode` only affects whether `allow_headers` is appended to the CORS config (test mode adds them; other values skip).
+- `loglevel` selects the Gin runtime mode:
+
+| `loglevel` | Gin behaviour |
+|------------|---------------|
+| `test` | `gin.TestMode` with `gin.Default()` middleware |
+| `release` | `gin.ReleaseMode` with `gin.Default()` middleware |
+| `prod` | `gin.ReleaseMode` with `gin.New()` (no default logger/recovery) |
+| (empty / other) | Gin's own default; `gin.Default()` middleware |
 
 ### TOML Example
 
