@@ -33,6 +33,9 @@ func loadModules() ([]fx.Option, error) {
 | `{scope}.tls.cert` | (empty) | TLS certificate path |
 | `{scope}.tls.key` | (empty) | TLS key path |
 | `{scope}.tls.ca` | (empty) | TLS CA certificate path |
+| `{scope}.lock.bucket` | `{scope}_locks` | KV bucket backing the distributed lock (created lazily on first use) |
+| `{scope}.lock.replicas` | `1` | KV bucket replica count. Use `≥ 3` for HA in clustered JetStream |
+| `{scope}.lock.defaultTTL` | `30s` | Default lock lease when `LockConfig.TTL` is zero. Minimum `1s` (NATS per-message TTL floor) |
 
 ### TOML Example
 
@@ -52,6 +55,11 @@ nkey = "/path/to/user.nk"
 cert = "/path/to/client.crt"
 key = "/path/to/client.key"
 ca = "/path/to/ca.crt"
+
+[nats.lock]
+bucket = "nats_locks"
+replicas = 1
+defaultTTL = "30s"
 ```
 
 ### Environment Variables
@@ -62,6 +70,9 @@ export NATS_PINGINTERVAL=10
 export NATS_MAXPINGSOUTSTANDING=3
 export NATS_MAXRECONNECTS=-1
 export NATS_AUTH_CREDS=/path/to/user.creds
+export NATS_LOCK_BUCKET=nats_locks
+export NATS_LOCK_REPLICAS=1
+export NATS_LOCK_DEFAULTTTL=30s
 ```
 
 ## Core Messaging
@@ -284,6 +295,90 @@ func (w *Worker) StartBatchConsumer() error {
 ### Restart Loop
 
 `StartWithRestart` / `StartBatchWithRestart` wrap the loop with panic recovery and exponential-backoff restart, controlled by `MaxRestarts` (default `-1` = unlimited; `0` disables restart), `RestartBaseDelay` (1s), `RestartMaxDelay` (30s). Use this for long-running workers where you'd rather restart than crash the process. `Shutdown()` interrupts the restart wait cleanly.
+
+## Distributed Lock & Once
+
+The connector exposes a JetStream KV-backed distributed lock and a `Once` helper for cross-instance "init exactly once" patterns. Typical use cases: schema migrations, stream/bucket bootstrapping, seed data, registering one-time external resources.
+
+Both helpers share a single KV bucket (default `{scope}_locks`), created lazily on first use with `History=1` and `LimitMarkerTTL=1h` (enables per-key TTL). Keys are namespaced: `lock.<your-key>` for the mutex, `done.<your-key>` for the `Once` sentinel.
+
+### Low-Level Lock
+
+```go
+type Params struct {
+    fx.In
+    NATS *nats_connector.NATSConnector
+}
+
+func (m *MyModule) DoCriticalWork(ctx context.Context) error {
+    lock, err := m.params.NATS.NewLock(nats_connector.LockConfig{
+        Key: "user-module.migration",
+        TTL: 30 * time.Second, // lease; auto-released if the holder crashes
+    })
+    if err != nil {
+        return err
+    }
+
+    if err := lock.Lock(ctx); err != nil {
+        return err
+    }
+    defer lock.Unlock(ctx)
+
+    // ... critical section ...
+    return nil
+}
+```
+
+### LockConfig
+
+```go
+type LockConfig struct {
+    Key               string        // required: lock identity (mutually exclusive across instances)
+    Bucket            string        // optional: override the default lock bucket
+    TTL               time.Duration // lease duration (default: lock.defaultTTL; min: MinLockTTL = 1s)
+    HeartbeatInterval time.Duration // renewal interval (default: TTL/3)
+    OwnerID           string        // optional: identity stamped on the lock key (default: "<hostname>-<random>")
+    OnLost            func(error)   // optional: callback when heartbeat detects loss
+}
+```
+
+### Lock Methods
+
+| Method | Description |
+|--------|-------------|
+| `Lock(ctx) error` | Blocks until acquired, ctx cancelled, or infra error |
+| `TryLock(ctx) (bool, error)` | Single attempt: `(true, nil)` acquired; `(false, nil)` held by someone else; `(false, err)` infra error |
+| `Unlock(ctx) error` | Releases via CAS Delete. Idempotent. Returns `ErrLockLost` if the heartbeat already detected loss or the revision no longer matches |
+| `Done() <-chan struct{}` | Closes when the lock is released (by `Unlock` or detected loss) |
+| `OwnerID() string` | The identity stamped on the lock key |
+| `Bucket() string` | The KV bucket the lock lives in |
+
+### Lock Semantics
+
+- **Atomic acquire** — `Create` on the KV bucket is atomic; only one caller wins. The rest see `ErrKeyExists` and either return `(false, nil)` from `TryLock` or block in `Lock` until the holder releases.
+- **Lease + heartbeat** — while held, a background goroutine renews the lease every `HeartbeatInterval` (default `TTL/3`) via CAS `Update`. If the holder crashes, the per-key TTL on the bucket expires the key and another caller can take over. The NATS server enforces `TTL >= 1s` (`MinLockTTL`).
+- **CAS release** — `Unlock` uses `Delete` with `LastRevision`, so a stale holder cannot delete a lock that has already been taken over by someone else.
+- **`Done()` channel** — closes when the lock is released, either by `Unlock` or because the heartbeat detected a loss (external purge, expired lease, network split). Useful to abort the critical section.
+- **`ErrLockLost`** — returned by `Unlock` when the local view of the lock no longer matches the bucket. Callers can branch via `errors.Is(err, nats_connector.ErrLockLost)`.
+- **Lock blocking uses KV `Watch`** — callers wake promptly when the lock is released (no busy polling), with a `ttl + 1s` safety-net timeout if a delete event is missed.
+- **Single-use instance** — a `Lock` is single-use; allocate a new `Lock` after `Unlock` if you need to re-acquire. Concurrent use of a single instance from multiple goroutines is NOT supported.
+
+### High-Level `Once`
+
+```go
+// First caller to acquire the underlying lock runs fn; subsequent callers
+// (current and future runs) skip fn and return nil once fn succeeds.
+err := m.params.NATS.Once(ctx, "user-module.bootstrap", func(ctx context.Context) error {
+    return migrateSchema(ctx)
+})
+```
+
+### `Once` Semantics
+
+- **Retries on failure** — if `fn` returns an error, the `done.<key>` sentinel is NOT written, so the next caller (this run or future) will run `fn` again.
+- **Idempotent fast-path** — once `fn` succeeds, the sentinel is permanent, making future calls effectively a single KV `Get` (no lock acquisition).
+- **Re-check under lock** — after acquiring the lock, `Once` re-checks the sentinel, so racing callers that all observed an empty sentinel still only run `fn` once.
+- **Lock released on a fresh context** — even if the caller's ctx is cancelled mid-`fn`, `Once` releases the lock with a 5s timeout context so the lock doesn't get stuck.
 
 ## Subject Patterns
 
