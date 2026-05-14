@@ -16,21 +16,24 @@ go get github.com/weedbox/common-modules/scheduler
 
 ## Modes Overview
 
-| Mode   | Backend                                         | Required dependency       | Deployment                         |
-|--------|-------------------------------------------------|---------------------------|------------------------------------|
-| `gorm` | `*gorm.DB` + in-memory timer                    | `database.DatabaseConnector` | **Single node only**            |
-| `nats` | NATS 2.12+ JetStream Scheduled Message Delivery | `*nats_connector.NATSConnector` | Single active instance, KV-backed restart |
+| Mode   | Backend                                         | Required dependency             | Deployment                                |
+|--------|-------------------------------------------------|---------------------------------|-------------------------------------------|
+| `gorm` | `*gorm.DB` + in-memory timer                    | `database.DatabaseConnector`    | **Single node only**                      |
+| `nats` | NATS 2.12+ JetStream Scheduled Message Delivery | `*nats_connector.NATSConnector` | **Multi-instance** with KV-backed persistence |
 
 > ⚠️ **`gorm` mode is single-node.** The in-memory timer lives inside each
 > process. Running multiple replicas against the same database will cause
 > **every job to fire on every replica**. Do not deploy `gorm` mode with
 > more than one instance.
 
-> ⚠️ **`nats` mode is single-active.** Each `Start` purges the stream and
-> recreates the durable consumer, which disrupts any peer currently
-> subscribed. Run exactly one active scheduler; use NATS mode for
-> KV-backed persistence and clean restart/failover semantics, not for
-> multi-node load splitting.
+> ✅ **`nats` mode supports multi-instance deployments.** Replicas share
+> the same durable consumer; each scheduled message is delivered to
+> exactly one replica via JetStream work-queue semantics. First-deploy
+> provisioning of the stream, KV buckets, and consumer is serialised
+> through `nats_connector.Once`, so concurrent boots are safe. Recurring
+> chains survive replica crashes, leader re-elections, and rolling
+> restarts; a background reconciler republishes any job whose next-run
+> has slipped past its grace window.
 
 ## Usage in Fx
 
@@ -96,17 +99,49 @@ type Params struct {
 
 ## Configuration
 
-| Parameter                      | Default              | Purpose                                        |
-|--------------------------------|----------------------|------------------------------------------------|
-| `{scope}.mode`                 | `gorm`               | Backend: `gorm` or `nats`                      |
-| `{scope}.nats.streamName`      | `SCHEDULER`          | JetStream stream name (NATS mode)              |
-| `{scope}.nats.subjectPrefix`   | `scheduler`          | Scheduled message subject prefix               |
-| `{scope}.nats.consumerName`    | `scheduler-worker`   | Durable consumer name                          |
-| `{scope}.nats.jobBucket`       | `SCHEDULER_JOBS`     | KV bucket for job definitions                  |
-| `{scope}.nats.execBucket`      | `SCHEDULER_EXECUTIONS` | KV bucket for in-flight execution state      |
+### Core
+
+| Parameter                      | Default                | Purpose                                        |
+|--------------------------------|------------------------|------------------------------------------------|
+| `{scope}.mode`                 | `gorm`                 | Backend: `gorm` or `nats`                      |
+| `{scope}.nats.streamName`      | `SCHEDULER`            | JetStream stream name (NATS mode)              |
+| `{scope}.nats.subjectPrefix`   | `scheduler`            | Scheduled message subject prefix               |
+| `{scope}.nats.consumerName`    | `scheduler-worker`     | Durable consumer name                          |
+| `{scope}.nats.jobBucket`       | `SCHEDULER_JOBS`       | KV bucket for job definitions                  |
+| `{scope}.nats.execBucket`      | `SCHEDULER_EXECUTIONS` | KV bucket for in-flight execution state        |
 
 `{scope}` is the string passed to `scheduler.Module("scheduler")` — by
 convention `scheduler`.
+
+### NATS-mode tuning knobs (optional)
+
+All keys live under `{scope}.nats.*`. Each one is **only forwarded when
+explicitly set**; omit a key to keep the underlying `Weedbox/scheduler`
+default. Durations accept Viper-friendly forms (`"30s"`, `"5m"`).
+
+| Parameter                              | Upstream default | Purpose                                                                 |
+|----------------------------------------|------------------|-------------------------------------------------------------------------|
+| `duplicatesWindow`                     | (lib default)    | Stream-level dedup window                                               |
+| `reconcilerInterval`                   | `30s`            | Background republish reconciler tick                                    |
+| `reconcilerGracePeriod`                | `30s`            | Lag tolerated before a recurring job is treated as stuck and republished |
+| `addJobRetryBudget`                    | `5s`             | `AddJob` / `UpdateJobSchedule` retry budget across raft hiccups          |
+| `startupStreamReadyTimeout`            | `30s`            | Wait for the stream's raft leader at start-up                           |
+| `jetStreamReadyTimeout`                | `30s`            | Wait for the JetStream metaleader                                       |
+| `startPhaseTimeout`                    | `30s`            | Per-phase cap inside `Start()`                                          |
+| `loadJobsConcurrency`                  | `32`             | Worker pool size for parallel KV reads during start-up                  |
+| `loadJobsAsyncPublishTimeout`          | `30s`            | Cap on draining the start-up async-publish queue                        |
+| `onceKey`                              | `scheduler.init` | Key used on the shared `nats_connector` lock bucket for first-deploy provisioning |
+| `publishRetry.attempts`                | (lib default)    | Retry attempts for scheduled-message publishes                          |
+| `publishRetry.initialBackoff`          | (lib default)    | Initial backoff between publish retries                                 |
+
+> 💡 `loadJobsConcurrency` and `loadJobsAsyncPublishTimeout` (added in
+> `Weedbox/scheduler` v0.3.0) tune the parallel KV reload at start-up.
+> Increase concurrency on deployments with many persisted jobs to cut
+> `Start()` time from `O(N × RTT)` to roughly `O((N / concurrency) × RTT)`.
+
+> ℹ️ The lock bucket used for `onceKey` is owned by `nats_connector` and
+> configured via its own `lock.bucket` key — **not** through the
+> scheduler module.
 
 ### TOML example
 
@@ -121,6 +156,22 @@ subjectPrefix = "scheduler"
 consumerName  = "scheduler-worker"
 jobBucket     = "SCHEDULER_JOBS"
 execBucket    = "SCHEDULER_EXECUTIONS"
+
+# Optional tuning knobs (omit to use upstream defaults)
+# duplicatesWindow             = "24h"
+# reconcilerInterval           = "30s"
+# reconcilerGracePeriod        = "30s"
+# addJobRetryBudget            = "5s"
+# startupStreamReadyTimeout    = "30s"
+# jetStreamReadyTimeout        = "30s"
+# startPhaseTimeout            = "30s"
+# loadJobsConcurrency          = 32
+# loadJobsAsyncPublishTimeout  = "30s"
+# onceKey                      = "scheduler.init"
+
+# [scheduler.nats.publishRetry]
+# attempts        = 3
+# initialBackoff  = "1s"
 ```
 
 ### Environment variables
@@ -139,6 +190,8 @@ export MYAPP_SCHEDULER_NATS_SUBJECTPREFIX=scheduler
 export MYAPP_SCHEDULER_NATS_CONSUMERNAME=scheduler-worker
 export MYAPP_SCHEDULER_NATS_JOBBUCKET=SCHEDULER_JOBS
 export MYAPP_SCHEDULER_NATS_EXECBUCKET=SCHEDULER_EXECUTIONS
+export MYAPP_SCHEDULER_NATS_LOADJOBSCONCURRENCY=64
+export MYAPP_SCHEDULER_NATS_RECONCILERGRACEPERIOD=1m
 ```
 
 ## API Reference
@@ -387,13 +440,21 @@ s.SetHandler(func(ctx context.Context, e libsched.JobEvent) error {
   in every process.
 - **`nats` mode requires NATS Server 2.12 or later** with JetStream
   enabled. Startup fails with `ErrNATSServerTooOld` on older servers.
-- **`nats` mode is single-active.** On `Start`, the library purges pending
-  scheduled messages from the previous run and reloads jobs from the KV
-  bucket, so a crashed process can be replaced by a fresh instance pointing
-  at the same stream without losing or duplicating registered jobs. Do not
-  run two active schedulers against the same stream.
-- The intended NATS-mode deployment is **one active scheduler with
-  KV-backed restart/failover**, not concurrent multi-node fan-out.
+- **`nats` mode supports multi-instance deployments.** Multiple scheduler
+  replicas can run against the same stream concurrently:
+  - First-deploy provisioning of the stream, KV buckets, and durable
+    consumer is serialised through `nats_connector.Once`, so concurrent
+    boots are safe and share the same lock substrate as every other
+    common-module that uses `Once`.
+  - The durable consumer's work-queue semantics ensure each scheduled
+    message is delivered to exactly one replica.
+  - On start-up the library reloads jobs from the KV bucket and filters
+    stale in-flight scheduled messages against the persisted state
+    (rather than purging the stream), so a crashed run does not
+    duplicate triggers and a healthy peer is not disrupted.
+  - A background reconciler republishes any recurring job whose next-run
+    has slipped past `nats.reconcilerGracePeriod`, recovering from
+    publish failures or unclean shutdowns.
 
 ## Related
 
