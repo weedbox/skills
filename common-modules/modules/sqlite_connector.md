@@ -20,6 +20,51 @@ func loadModules() ([]fx.Option, error) {
 }
 ```
 
+Each `Module(scope)` call registers a `database.DatabaseConnector` keyed by `name:"<scope>"`. The first connector loaded in the process also claims the **unnamed default** slot, so single-load callers can inject `database.DatabaseConnector` without a tag and it continues to work. See [Loading Multiple Connectors](#loading-multiple-connectors) for the multi-load case.
+
+## Loading Multiple Connectors
+
+`sqlite_connector` and `postgres_connector` can be loaded into the same `fx.App` — for example to run SQLite for a local cache alongside a PostgreSQL primary. Each `Module(scope)` always registers a named connector keyed by its `scope`; consumers disambiguate via fx's `name` tag:
+
+```go
+type Params struct {
+    fx.In
+
+    Cache database.DatabaseConnector `name:"cache"` // sqlite
+    Main  database.DatabaseConnector `name:"main"`  // postgres
+}
+
+func main() {
+    fx.New(
+        logger.Module(),
+        sqlite_connector.Module("cache"),
+        postgres_connector.Module("main"),
+        fx.Invoke(func(p Params) { /* use p.Cache, p.Main */ }),
+    ).Run()
+}
+```
+
+The **first** connector module loaded into the process (across all `database.DatabaseConnector` implementations) also exposes itself as the **unnamed default**. Load order controls which connector becomes the default — if load order is brittle, always inject by named tag in multi-load setups.
+
+### Test caveat: `ResetClaim` between `fx.App`s
+
+The "first call wins" claim on the unnamed default uses process-level state. Tests that build more than one `fx.App` in the same process must reset that claim between apps, otherwise later apps cannot register an unnamed default:
+
+```go
+import "github.com/weedbox/weedbox/fxmodule"
+
+func TestSomething(t *testing.T) {
+    fxmodule.ResetClaim[database.DatabaseConnector]()
+    t.Cleanup(func() { fxmodule.ResetClaim[database.DatabaseConnector]() })
+
+    app := fx.New(
+        sqlite_connector.Module("database"),
+        // ...
+    )
+    // ...
+}
+```
+
 ## Configuration
 
 | Parameter | Default | Purpose |

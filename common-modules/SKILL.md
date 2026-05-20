@@ -94,7 +94,9 @@ type Params struct {
 }
 ```
 
-### Common-modules Do NOT Need name Tag
+### Common-modules Do NOT Need name Tag (Single-Load Default)
+
+When a single connector / module is loaded, inject it **without** a `name` tag:
 
 ```go
 // ✅ Correct
@@ -105,6 +107,18 @@ HTTPServer *http_server.HTTPServer
 Database   database.DatabaseConnector `name:"database"`
 HTTPServer *http_server.HTTPServer    `name:"http_server"`
 ```
+
+**Exception — multi-load `DatabaseConnector`:** when you load `sqlite_connector.Module("cache")` and `postgres_connector.Module("main")` into the same `fx.App`, each registers itself as `name:"<scope>"` and consumers MUST disambiguate with the `name` tag:
+
+```go
+type Params struct {
+    fx.In
+    Cache database.DatabaseConnector `name:"cache"` // sqlite
+    Main  database.DatabaseConnector `name:"main"`  // postgres
+}
+```
+
+The first connector loaded in the process also claims the unnamed default slot, so existing single-load code keeps working. See [database.md](./modules/database.md#loading-multiple-connectors) for full details and the `fxmodule.ResetClaim` test caveat.
 
 ---
 
