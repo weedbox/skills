@@ -146,9 +146,6 @@ m.GetConfigPath(key string) string
 
 // Access injected params
 m.Params() *Params
-
-// Get module scope name
-m.Scope() string
 ```
 
 ## Lifecycle Interface Methods

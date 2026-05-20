@@ -6,12 +6,15 @@ description: |
   Weedbox module/package development guide with Uber Fx dependency injection.
   Use when: creating weedbox module, developing weedbox package, building custom module,
   implementing dependency injection, managing module lifecycle (OnStart/OnStop),
-  configuring module with Viper, injecting database/logger/NATS/Redis dependencies.
+  configuring module with Viper, injecting database/logger/NATS/Redis dependencies,
+  building connector-style modules with swappable interface implementations.
   Covers: Module() function, Params struct, fx.In/fx.Out, weedbox.Module generic,
+  fxmodule.InterfaceModule helper for swappable interfaces,
   configuration management, error handling, event publishing.
   Keywords: weedbox module, weedbox package, uber fx, dependency injection, module development,
   OnStart, OnStop, Params, fx.Invoke, fx.Provide, lifecycle hooks,
-  create module, new module, custom module, Go module, weedbox generic, module skills.
+  create module, new module, custom module, Go module, weedbox generic, module skills,
+  fxmodule, InterfaceModule, connector module, swappable implementation, named instance.
 ---
 
 # Weedbox Module Development
@@ -69,7 +72,7 @@ pkg/mymodule/
 
 **Note**: Business logic files are named by their feature/responsibility (e.g., `job.go`, `blueprint.go`, `schedule.go`), not generically as `core.go`.
 
-## Two Methods for Creating Modules
+## Three Methods for Creating Modules
 
 ### Method 1: Manual FX Module
 
@@ -104,7 +107,7 @@ For complete documentation, see [./references/METHOD1_MANUAL_FX.md](./references
 
 ---
 
-### Method 2: Weedbox Generic Module (Recommended)
+### Method 2: Weedbox Generic Module (Recommended for business modules)
 
 Cleaner code using `weedbox.Module[P]` generics with built-in lifecycle management.
 
@@ -131,22 +134,63 @@ func (m *MyModule) OnStop(ctx context.Context) error { ... }
 func (m *MyModule) InitDefaultConfigs() { ... }
 ```
 
-**When to use**: New modules, simple dependencies, less boilerplate.
+**When to use**: New business-logic modules, simple dependencies, less boilerplate.
 
 For complete documentation, see [./references/METHOD2_WEEDBOX_GENERIC.md](./references/METHOD2_WEEDBOX_GENERIC.md).
 
 ---
 
+### Method 3: Interface Module (`fxmodule.InterfaceModule`) — for swappable implementations
+
+For **connector-style** modules — those that implement a shared interface (database connectors, cache backends, message brokers, etc.) and may be loaded side-by-side with other implementations of the same interface.
+
+```go
+import (
+    "github.com/weedbox/common-modules/database"
+    "github.com/weedbox/weedbox/fxmodule"
+)
+
+type Params struct {
+    fx.In
+    Lifecycle fx.Lifecycle
+    Logger    *zap.Logger
+}
+
+func Module(scope string) fx.Option {
+    return fxmodule.InterfaceModule[database.DatabaseConnector](
+        scope,
+        func(p Params) database.DatabaseConnector {
+            c := &MyConnector{ /* ... */ }
+            p.Lifecycle.Append(fx.Hook{OnStart: c.onStart, OnStop: c.onStop})
+            return c
+        },
+    )
+}
+```
+
+`InterfaceModule[I]` registers the constructor as `name:"<scope>"` returning `I`, and the **first** call across the process also exposes the same instance as the unnamed default of `I`. Multiple implementations can be loaded into the same `fx.App` — consumers disambiguate via `name:"<scope>"`, and existing single-load callers that inject `I` without a tag keep working unchanged.
+
+**When to use**: The module is one implementation of a swappable interface (`database.DatabaseConnector`, `cache.Cache`, etc.); multiple implementations may need to coexist in the same app.
+
+**Don't use** for plain business-logic modules that expose a concrete struct — use Method 1 or Method 2 for those.
+
+For complete documentation, see [./references/METHOD3_INTERFACE_MODULE.md](./references/METHOD3_INTERFACE_MODULE.md).
+
+---
+
 ## Quick Comparison
 
-| Aspect | Method 1 (Manual) | Method 2 (Weedbox Generic) |
-|--------|-------------------|---------------------------|
-| Base struct | Custom struct | `weedbox.Module[*Params]` |
-| Params | `fx.In` struct | Embed `weedbox.Params` |
-| Logger | `m.logger` (manual) | `m.Logger()` (built-in) |
-| Config path | `m.getConfigPath()` | `m.GetConfigPath()` |
-| Lifecycle | `lc.Append(fx.Hook{})` | `OnStart()` / `OnStop()` |
-| Injection | No `name` tag needed | **Requires `name` tag** |
+| Aspect                  | Method 1 (Manual FX)          | Method 2 (Weedbox Generic)         | Method 3 (InterfaceModule)                |
+|-------------------------|-------------------------------|------------------------------------|-------------------------------------------|
+| Module shape            | Concrete struct               | Concrete struct + base class       | Constructor returning an **interface**    |
+| Base struct             | Custom struct                 | `weedbox.Module[*Params]`          | None (constructor function)               |
+| Params                  | `fx.In` struct                | Embed `weedbox.Params`             | `fx.In` struct                            |
+| Logger                  | `m.logger` (manual)           | `m.Logger()` (built-in)            | Manual (in the constructor)               |
+| Config path             | `m.getConfigPath()`           | `m.GetConfigPath()`                | Manual                                    |
+| Lifecycle               | `lc.Append(fx.Hook{})`        | `OnStart()` / `OnStop()`           | `lc.Append(fx.Hook{})` inside `ctor`      |
+| Side-by-side loading    | Not supported                 | Not supported                      | **Supported** — multiple impls in one app |
+| Injection (single-load) | No `name` tag                 | Requires `name` tag                | No `name` tag (unnamed default)           |
+| Injection (multi-load)  | N/A                           | N/A                                | `name:"<scope>"` on each consumer         |
 
 ## Injection Rules
 
@@ -165,10 +209,27 @@ type Params struct {
     // Method 1 modules - NO `name` tag needed
     ViewManager *view_manager.ViewManager
 
-    // Common modules - NO `name` tag
+    // Common modules (single-load) - NO `name` tag
     Database database.DatabaseConnector
 }
 ```
+
+### Multi-load exception (Method 3 / `InterfaceModule`)
+
+When two implementations of the same interface are loaded into the same `fx.App` (e.g. `sqlite_connector.Module("cache")` + `postgres_connector.Module("main")`), consumers MUST disambiguate via the `name` tag:
+
+```go
+type Params struct {
+    fx.In
+
+    Cache database.DatabaseConnector `name:"cache"` // sqlite
+    Main  database.DatabaseConnector `name:"main"`  // postgres
+}
+```
+
+The first connector loaded in the process also claims the unnamed default slot, so existing code that injects the interface without a tag continues to work — but if load order is brittle, always inject by named tag.
+
+**Test caveat**: tests building multiple `fx.App`s in one process must call `fxmodule.ResetClaim[I]()` between apps. See [METHOD3 reference](./references/METHOD3_INTERFACE_MODULE.md#test-caveat-resetclaim-between-fxapps) for details.
 
 ## User Modules Reference
 
