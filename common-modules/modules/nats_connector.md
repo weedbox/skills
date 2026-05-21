@@ -1,6 +1,6 @@
 # nats_connector
 
-NATS messaging client with JetStream, a work queue consumer (single-message and batch APIs), batch publishing (cross-stream async fan-out and single-stream atomic), and a distributed lock / `Once` helper.
+NATS messaging client with JetStream, a work queue consumer (single-message and batch APIs), batch publishing (cross-stream async fan-out and single-stream atomic), convergent `Ensure*` helpers for multi-instance-safe stream / KV / consumer provisioning, and a distributed lock / `Once` helper.
 
 ## Installation
 
@@ -117,6 +117,13 @@ msg, err := m.params.NATS.GetConnection().Request(subject, data, 5*time.Second)
 
 ## JetStream
 
+The connector exposes two JetStream handles:
+
+| Method | Type | When to use |
+|--------|------|-------------|
+| `GetJetStreamContext()` | `nats.JetStreamContext` (legacy nats.go API) | Kept for backward compatibility; required for `AddStream` / `Publish` / `Subscribe` on the legacy API |
+| `GetJetStream()` | `jetstream.JetStream` (modern nats.go new API) | Prefer for new code, especially anything that uses `jetstream.KeyValueConfig` / `jetstream.StreamConfig` / `jetstream.ConsumerConfig` or the `Ensure*` helpers below |
+
 ### Publishing to Stream
 
 ```go
@@ -125,6 +132,8 @@ ack, err := js.Publish(subject, data)
 ```
 
 ### Creating Streams
+
+For multi-instance deployments, prefer the convergent `EnsureStream` / `EnsureKV` / `EnsureConsumer` helpers documented in [Multi-Instance-Safe Resource Provisioning](#multi-instance-safe-resource-provisioning) — they are race-safe across replicas, classify transient errors, and fall back to single-replica on single-node servers. The legacy form below is fine for single-instance dev work:
 
 ```go
 js := m.params.NATS.GetJetStreamContext()
@@ -135,6 +144,100 @@ _, err := js.AddStream(&nats.StreamConfig{
     MaxAge:   24 * time.Hour,
 })
 ```
+
+## Multi-Instance-Safe Resource Provisioning
+
+When several replicas boot at the same time and each tries to create the same JetStream stream / KV bucket / durable consumer, naive `CreateStream` races can produce `"no responders"` errors, leadership-transferred errors, or `"already in use"` errors. The connector ships a family of **convergent ensure** helpers that wrap JetStream's `CreateOrUpdate*` API with transient-error retry, bounded exponential backoff, and single-node replica fallback. They rely on the JetStream meta-leader to serialize `CreateOrUpdate*` by name across the cluster — **no distributed lock required**.
+
+Use these whenever a module needs to declaratively provision a stream / KV bucket / durable consumer at start-up and you don't want each replica to fight over it.
+
+### Method Form (preferred)
+
+The method form auto-supplies the connector's JetStream handle and logger:
+
+```go
+type Params struct {
+    fx.In
+    NATS *nats_connector.NATSConnector
+}
+
+func (m *MyModule) OnStart(ctx context.Context) error {
+    stream, err := m.params.NATS.EnsureStream(ctx, jetstream.StreamConfig{
+        Name:     "EVENTS",
+        Subjects: []string{"events.>"},
+        Replicas: 3, // auto-falls back to 1 on single-node servers
+    })
+    if err != nil {
+        return err
+    }
+
+    kv, err := m.params.NATS.EnsureKV(ctx, jetstream.KeyValueConfig{
+        Bucket:   "user-sessions",
+        History:  5,
+        Replicas: 3,
+    })
+    if err != nil {
+        return err
+    }
+    _ = kv
+
+    consumer, err := m.params.NATS.EnsureConsumer(ctx, stream, jetstream.ConsumerConfig{
+        Durable:       "worker-A",
+        FilterSubject: "events.>",
+        AckPolicy:     jetstream.AckExplicitPolicy,
+    })
+    if err != nil {
+        return err
+    }
+    _ = consumer
+
+    // Opportunistic scale-up: best-effort, never returns an error.
+    // Useful when an older deployment created the stream as replicas=1
+    // and the cluster has since grown to support replicas=3.
+    m.params.NATS.EnsureReplicaScale(ctx, "EVENTS", 3)
+    return nil
+}
+```
+
+### Stand-alone Form (package-level)
+
+Package-level functions accept an explicit `jetstream.JetStream` handle and `...EnsureOption`. Use these when wiring against a different account or when embedding in another module that already holds a JetStream handle:
+
+```go
+js := nc.GetJetStream()
+stream, err := nats_connector.EnsureStream(ctx, js, cfg,
+    nats_connector.WithEnsureLogger(logger),
+    nats_connector.WithEnsureBackoff(200*time.Millisecond, 2*time.Second),
+)
+```
+
+### Semantics
+
+- **Idempotency via `CreateOrUpdate`** — every helper calls `js.CreateOrUpdateKeyValue` / `js.CreateOrUpdateStream` / `stream.CreateOrUpdateConsumer`. The JetStream meta-leader serializes by resource name, so concurrent callers across all replicas converge on the same final config without races.
+- **Transient error retry** — `"no responders"`, leadership-transferred, `"stream in use"`, and timeout errors are classified as transient and retried with exponential backoff (default 200ms → 2s, doubled per attempt and capped). Non-transient errors (subjects overlap, conflicting config, etc.) surface immediately.
+- **Replica fallback** — when the server replies `err_code 10074` (insufficient peers), the helper retries once with `Replicas=1`, logs a warning, and returns the single-node resource. This keeps single-node dev environments working with the same `Replicas=3` config used in production. Disable via `WithoutReplicaFallback()` to get a hard error instead.
+- **`EnsureReplicaScale`** — best-effort opportunistic promotion of an existing stream toward `desired` replicas. Reads current stream info, returns early if `desired ≤ 1` or current replicas already meet `desired`. Logs and swallows failures. No return value. Use this when a topology change should make an existing stream more durable.
+- **Readiness gating** — `EnsureKV` / `EnsureStream` block until the underlying stream has an elected leader and all replicas are current; the call only returns once the resource is publishable.
+- **Default replicas = 3** — if `cfg.Replicas` is zero, the helpers target a 3-node cluster (`DefaultEnsureReplicas`). Combined with the fallback path, the same code provisions HA in production and single-replica in dev without branching.
+- **No shared state** — the helpers do not touch viper or persist anything outside JetStream. Backoff and replica behaviour are controlled per call via options.
+
+### EnsureOption
+
+| Option | Purpose |
+|--------|---------|
+| `WithEnsureLogger(l *zap.Logger)` | Receives structured-log lines on non-trivial transitions (insufficient-peers fallback, replica scale-up result, final scale-up failure). `nil` silences. Method form auto-supplies the connector's logger. |
+| `WithEnsureBackoff(base, max time.Duration)` | Overrides the retry backoff window. `base` is the initial sleep; `max` caps the doubled value. Defaults: 200ms → 2s. |
+| `WithoutReplicaFallback()` | Disables the silent demotion to `Replicas=1`; surfaces the placement error instead. |
+
+### Ensure\* vs Once vs Lock
+
+| Need | Use |
+|------|-----|
+| Provision the same stream / KV / consumer from every replica | `Ensure*` |
+| Run an arbitrary `func(ctx) error` body exactly once across all replicas (e.g. schema migration, seed data) | `Once` |
+| Acquire mutual exclusion around a critical section | `NewLock` |
+
+For new code that only needs to declare JetStream resources, prefer `Ensure*` — it requires no distributed lock, no bucket bootstrapping for the lock itself, and tolerates replicas racing to start up.
 
 ## Batch Publishing
 
@@ -409,7 +512,9 @@ func (w *Worker) StartBatchConsumer() error {
 
 ## Distributed Lock & Once
 
-The connector exposes a JetStream KV-backed distributed lock and a `Once` helper for cross-instance "init exactly once" patterns. Typical use cases: schema migrations, stream/bucket bootstrapping, seed data, registering one-time external resources.
+The connector exposes a JetStream KV-backed distributed lock and a `Once` helper for cross-instance "init exactly once" patterns. Typical use cases: schema migrations, seed data, registering one-time external resources.
+
+> For declaratively provisioning streams, KV buckets, or durable consumers, prefer the [`Ensure*` helpers](#multi-instance-safe-resource-provisioning) — they are cheaper (no lock bucket bootstrap), simpler (one call per resource), and rely on JetStream's built-in name-level serialization instead of a CAS lock.
 
 Both helpers share a single KV bucket (default `{scope}_locks`), created lazily on first use with `History=1` and `LimitMarkerTTL=1h` (enables per-key TTL). Keys are namespaced: `lock.<your-key>` for the mutex, `done.<your-key>` for the `Once` sentinel.
 
