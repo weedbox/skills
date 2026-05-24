@@ -165,7 +165,8 @@ func (m *MyModule) OnStart(ctx context.Context) error {
     stream, err := m.params.NATS.EnsureStream(ctx, jetstream.StreamConfig{
         Name:     "EVENTS",
         Subjects: []string{"events.>"},
-        Replicas: 3, // auto-falls back to 1 on single-node servers
+        Replicas: 3, // single-node connections fall back to 1 immediately;
+                     // multi-node clusters wait InsufficientPeersBudget first
     })
     if err != nil {
         return err
@@ -213,20 +214,23 @@ stream, err := nats_connector.EnsureStream(ctx, js, cfg,
 
 ### Semantics
 
-- **Idempotency via `CreateOrUpdate`** — every helper calls `js.CreateOrUpdateKeyValue` / `js.CreateOrUpdateStream` / `stream.CreateOrUpdateConsumer`. The JetStream meta-leader serializes by resource name, so concurrent callers across all replicas converge on the same final config without races.
-- **Transient error retry** — `"no responders"`, leadership-transferred, `"stream in use"`, and timeout errors are classified as transient and retried with exponential backoff (default 200ms → 2s, doubled per attempt and capped). Non-transient errors (subjects overlap, conflicting config, etc.) surface immediately.
-- **Replica fallback** — when the server replies `err_code 10074` (insufficient peers), the helper retries once with `Replicas=1`, logs a warning, and returns the single-node resource. This keeps single-node dev environments working with the same `Replicas=3` config used in production. Disable via `WithoutReplicaFallback()` to get a hard error instead.
+- **Lookup-first** — every iteration of `EnsureStream` / `EnsureKV` starts with `js.Stream` / `js.KeyValue` and short-circuits when the existing resource is already publishable (leader elected, all replicas current). `CreateOrUpdate*` is only issued when the lookup misses. This avoids re-driving server-side Raft activity on every retry when a stream is mid-scale or mid-catch-up. The JetStream meta-leader serializes the create path by resource name, so racing callers either match the same config (idempotent) or fall back to the next lookup.
+- **No config drift reconciliation** — because the helpers short-circuit on lookup hit, mutations to `cfg` on an existing resource are NOT applied through `Ensure*`. Callers needing drift reconciliation must issue an explicit `js.UpdateStream` / `js.CreateOrUpdateKeyValue` outside the helper.
+- **Transient error retry** — `"no responders"`, leadership-transferred, `"stream in use"`, classic `nats.ErrTimeout`, and timeout errors are classified as transient (via `errors.Is` for classic nats errors plus substring matches) and retried with exponential backoff (default 200ms → 2s, doubled per attempt and capped). Non-transient errors (subjects overlap, conflicting config, etc.) surface immediately.
+- **Replica fallback with bootstrap budget** — when the server replies `err_code 10074` (insufficient peers / `no_suitable_peers`), the helper first treats it as a cluster-bootstrap transient for `InsufficientPeersBudget` (default 30s) — a fresh 3-node cluster momentarily reports this while meta-leader election and per-stream Raft groups are still forming. Only after the budget elapses without recovery is `cfg.Replicas` demoted to 1, logged as a warning, and the call returns the single-replica resource. Disable fallback entirely via `WithoutReplicaFallback()`, or shorten / zero the budget via `WithInsufficientPeersBudget(d)`.
+- **Single-node auto-skip (method form only)** — `(*NATSConnector).EnsureKV/EnsureStream/EnsureConsumer/EnsureReplicaScale` automatically apply `WithInsufficientPeersBudget(0)` when the connected NATS server reports an empty cluster name (`conn.ConnectedClusterName() == ""`), so dev machines and embedded test servers fall back to `Replicas=1` immediately instead of paying 30s × N resources of dead wait. Stand-alone (package-level) callers must opt in explicitly.
 - **`EnsureReplicaScale`** — best-effort opportunistic promotion of an existing stream toward `desired` replicas. Reads current stream info, returns early if `desired ≤ 1` or current replicas already meet `desired`. Logs and swallows failures. No return value. Use this when a topology change should make an existing stream more durable.
-- **Readiness gating** — `EnsureKV` / `EnsureStream` block until the underlying stream has an elected leader and all replicas are current; the call only returns once the resource is publishable.
+- **Readiness gating** — `EnsureKV` / `EnsureStream` block until the underlying stream has an elected leader **and** every replica is online + Current; the call only returns once the resource is fully publishable, not just leader-elected.
 - **Default replicas = 3** — if `cfg.Replicas` is zero, the helpers target a 3-node cluster (`DefaultEnsureReplicas`). Combined with the fallback path, the same code provisions HA in production and single-replica in dev without branching.
-- **No shared state** — the helpers do not touch viper or persist anything outside JetStream. Backoff and replica behaviour are controlled per call via options.
+- **No shared state** — the helpers do not touch viper or persist anything outside JetStream. Backoff, budget, and replica behaviour are controlled per call via options.
 
 ### EnsureOption
 
 | Option | Purpose |
 |--------|---------|
-| `WithEnsureLogger(l *zap.Logger)` | Receives structured-log lines on non-trivial transitions (insufficient-peers fallback, replica scale-up result, final scale-up failure). `nil` silences. Method form auto-supplies the connector's logger. |
+| `WithEnsureLogger(l *zap.Logger)` | Receives structured-log lines on non-trivial transitions (insufficient-peers in-budget retry, post-budget fallback, replica scale-up result, final scale-up failure). `nil` silences. Method form auto-supplies the connector's logger. |
 | `WithEnsureBackoff(base, max time.Duration)` | Overrides the retry backoff window. `base` is the initial sleep; `max` caps the doubled value. Defaults: 200ms → 2s. |
+| `WithInsufficientPeersBudget(d time.Duration)` | How long to treat `err_code 10074` as a transient cluster-bootstrap error before demoting to `Replicas=1`. Default `DefaultInsufficientPeersBudget` (30s). `0` falls back immediately on the first occurrence — useful for single-node deployments and tests asserting the fallback path. Negatives clamp to 0. No effect when combined with `WithoutReplicaFallback()`. |
 | `WithoutReplicaFallback()` | Disables the silent demotion to `Replicas=1`; surfaces the placement error instead. |
 
 ### Ensure\* vs Once vs Lock
