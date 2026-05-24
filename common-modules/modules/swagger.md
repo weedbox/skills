@@ -33,27 +33,23 @@ This module requires:
 
 ### Generating Swagger Docs
 
-Install swag CLI:
+> **Before running `swag init` for the first time, read [swag CLI Version Compatibility](#swag-cli-version-compatibility-important) below.** The CLI version you pick determines whether external module annotations are picked up *and* whether the generated `docs.go` compiles. The `swag init` invocations below are the headline cases; the compatibility section explains how to reconcile CLI version with the runtime library pinned by `common-modules/swagger`.
 
-```bash
-go install github.com/swaggo/swag/cmd/swag@latest
-```
-
-Add annotations to your main.go and handlers, then generate:
+Add annotations to your main.go and handlers, then generate. The recommended invocation uses `go run` to pin the CLI version inside the repo (no global install needed):
 
 **Basic** (all handlers in same project):
 
 ```bash
-swag init
+go run github.com/swaggo/swag/cmd/swag@v1.16.6 init
 ```
 
 **With external modules** (using external weedbox modules like `user-modules`):
 
 ```bash
-swag init --parseDependency --parseDependencyLevel 3
+go run github.com/swaggo/swag/cmd/swag@v1.16.6 init --parseDependency --parseDependencyLevel 3
 ```
 
-The `--parseDependency` flag tells swag to scan Go dependencies for swagger annotations. This is **required** when using external weedbox modules that contain annotated handlers.
+The `--parseDependency` flag tells swag to scan Go dependencies for swagger annotations. This is **required** when using external weedbox modules that contain annotated handlers. The accompanying `--parseDependencyLevel` is only recognised by CLI `v1.16.x`+ — see the compatibility section for the `v1.8.12` equivalent and the post-generation fix-up needed against the pinned runtime.
 
 > **Note**: External library modules (e.g. `user-modules`) do NOT run `swag init`, do NOT have a `docs/` directory, and do NOT depend on swag. They only contain pure Go comment annotations on their handler functions.
 
@@ -297,6 +293,101 @@ swagger.Module("swagger"),
 ```
 
 The `--parseDependency` flag tells swag to scan all Go module dependencies for annotations, producing a unified Swagger spec that includes both local and external module endpoints.
+
+## swag CLI Version Compatibility (Important)
+
+The `common-modules/swagger` package pins the **runtime library** `github.com/swaggo/swag` at `v1.8.12`. This is independent from the **swag CLI** version you invoke to generate `docs/`. Mixing the two requires care — read this section before choosing a CLI version.
+
+### The trade-off in one table
+
+| swag CLI version | Can it scan external module annotations (e.g. `user-modules`)? | Generated `docs.go` compatible with runtime `v1.8.12`? |
+|------------------|-----------------------------------------------------------------|--------------------------------------------------------|
+| `v1.8.12` | **No** — `--parseDependency` exists but its parser misses handlers in nested module dependencies; common result is `paths: 0`. The flag is `--parseDepth` (AST depth, default 100), and `--parseDependencyLevel` is **not recognised**. | Yes |
+| `v1.16.x` (e.g. `v1.16.6`) | **Yes** — dependency parser was rewritten; correctly resolves handlers in `user-modules/*_apis`. The depth flag was renamed to `--parseDependencyLevel` (module-hop level, not AST depth). | **No** — emits two extra fields (`LeftDelim` / `RightDelim`) in the `swag.Spec` struct literal that do not exist in `v1.8.12`. Build will fail with `unknown field LeftDelim/RightDelim`. |
+
+**Recommended choice for weedbox projects that use external API modules**: use CLI `v1.16.6` and strip the two unsupported fields from the generated `docs.go`. This is the only combination that produces a complete spec **and** compiles against the pinned runtime.
+
+### Flag name change between versions
+
+| Purpose | `v1.8.12` flag | `v1.16.x` flag |
+|---------|----------------|----------------|
+| Enable dependency scanning | `--parseDependency` | `--parseDependency` (unchanged) |
+| Control dependency depth | `--parseDepth <N>` (AST depth, default 100) | `--parseDependencyLevel <N>` (module-hop level, e.g. `3`) |
+
+Passing `--parseDependencyLevel` to `v1.8.12` produces `flag provided but not defined: -parseDependencyLevel`.
+
+### Recommended Makefile target
+
+Drop this into a project Makefile so every developer gets a reproducible build regardless of whether `swag` is installed on their `$PATH`:
+
+```makefile
+SWAG_VERSION := v1.16.6
+
+# Generate Swagger docs.
+# - v1.16.6 CLI correctly parses external weedbox modules via --parseDependencyLevel.
+# - The runtime lib pinned by common-modules/swagger (v1.8.12) does not know
+#   about LeftDelim/RightDelim, so we strip those two lines from docs.go.
+docs:
+	rm -rf docs
+	go run github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION) init \
+		--parseDependency --parseDependencyLevel 3
+	@sed -i.bak -e '/LeftDelim:/d' -e '/RightDelim:/d' docs/docs.go && rm docs/docs.go.bak
+```
+
+`go run github.com/swaggo/swag/cmd/swag@<version>` avoids a global `go install` and pins the CLI version inside the repo — useful in CI and on machines where `$GOPATH/bin` is not on `$PATH`.
+
+### Legacy: using the `v1.8.12` CLI
+
+Only viable when **all** annotated handlers live in the application itself (no external weedbox API modules like `user_apis`, `auth_apis`, `role_apis`). In this self-contained case the `v1.8.12` CLI matches the pinned runtime exactly, so no post-generation patching is needed.
+
+**Self-contained project** (no external `*_apis` modules):
+
+```bash
+go run github.com/swaggo/swag/cmd/swag@v1.8.12 init
+```
+
+**With dependency scanning attempted** — note the flag name is `--parseDepth`, not `--parseDependencyLevel`:
+
+```bash
+go run github.com/swaggo/swag/cmd/swag@v1.8.12 init \
+    --parseDependency --parseInternal --parseDepth 5
+```
+
+> ⚠️ **Known limitation**: even with `--parseDependency --parseDepth 5`, `v1.8.12` typically returns `paths: 0` when handlers live in nested module dependencies (e.g. `weedbox/user-modules/user_apis`). The dependency parser was rewritten in `v1.16`. If your project uses any external API modules, the `v1.8.12` CLI is **not** a viable path — switch to the `v1.16.x` flow above.
+
+**Legacy Makefile target** (no patching needed because CLI and runtime versions match):
+
+```makefile
+SWAG_VERSION := v1.8.12
+
+# Only use this flow if ALL annotated handlers are in this project.
+# For projects that depend on weedbox/user-modules or any other external
+# annotated API module, use the v1.16.6 flow instead.
+docs:
+	rm -rf docs
+	go run github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION) init
+```
+
+### Choosing between the two flows
+
+| Your project... | Recommended flow |
+|-----------------|------------------|
+| Uses `user_apis` / `auth_apis` / `role_apis` / any external annotated module | **v1.16.6** + strip `LeftDelim`/`RightDelim` (default) |
+| Has all handlers inside its own `main` module, no external annotations | **v1.8.12** plain `swag init` (no patching) |
+| Unsure | Default to **v1.16.6** — it works for both cases once the two-line strip is in place |
+
+### Symptoms cheat sheet
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| `flag provided but not defined: -parseDependencyLevel` | Running `v1.8.12` CLI with the new flag name. | Either upgrade the CLI to `v1.16.x` or use `--parseDepth` instead. |
+| `unknown field LeftDelim in struct literal of type "github.com/swaggo/swag".Spec` | `v1.16.x` CLI generated `docs.go`, but project compiles against runtime `v1.8.12` (pinned by `common-modules`). | Strip the `LeftDelim:` / `RightDelim:` lines from `docs/docs.go` (the Makefile target above does this automatically). |
+| `paths: 0` in generated `swagger.json` despite annotations existing in external modules. | Using `v1.8.12` CLI — its dependency parser does not see handlers in nested module dependencies. | Switch to `v1.16.x` CLI. |
+| `swag: command not found` in CI | `swag` CLI not installed on `$PATH`. | Use `go run github.com/swaggo/swag/cmd/swag@v1.16.6 init ...` — no global install needed. |
+
+### Why not just upgrade the runtime lib?
+
+`common-modules/swagger` controls the runtime version, not the application. Upgrading would require a coordinated change in `common-modules` itself. The strip-two-fields workaround is the pragmatic path until `common-modules` bumps the pin.
 
 ## Scalar UI Features
 
