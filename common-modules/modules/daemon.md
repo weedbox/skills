@@ -1,6 +1,6 @@
 # daemon
 
-Service lifecycle management with ready/health status tracking.
+Service lifecycle management with composite ready / health status tracking.
 
 ## Installation
 
@@ -50,12 +50,66 @@ func initModules() ([]fx.Option, error) {
 ## API Methods
 
 ```go
-// Check if service is ready (all modules initialized)
+// Composite readiness: true only when the daemon has started AND every
+// registered ready checker returns true. Safe for concurrent use.
 daemon.Ready() // returns bool
 
 // Get health status
 daemon.GetHealthStatus() // returns HealthStatus
+
+// Composite-readiness plug-in API. Checkers are invoked on every Ready()
+// call, so they should be cheap and non-blocking — typically a single
+// atomic / mutex-guarded field read.
+daemon.RegisterReadyChecker(name string, fn func() bool)
+daemon.UnregisterReadyChecker(name string)
 ```
+
+## Composite Readiness
+
+`Ready()` is a logical AND of the daemon's own `isReady` flag and every registered ready checker. Modules that have their own runtime "am I ready?" notion (cluster membership, leader election, warmed cache, established upstream connection, etc.) can plug themselves in so that `/ready` reflects the true composite state of the service — not just "all `OnStart` hooks returned".
+
+```go
+package cluster
+
+import (
+    "context"
+
+    "github.com/weedbox/common-modules/daemon"
+    "go.uber.org/fx"
+)
+
+type Params struct {
+    fx.In
+
+    Lifecycle fx.Lifecycle
+    Daemon    *daemon.Daemon
+    Cluster   *Cluster
+}
+
+func Register(p Params) {
+    p.Lifecycle.Append(fx.Hook{
+        OnStart: func(ctx context.Context) error {
+            // /ready only flips true once the cluster reports ready as well.
+            p.Daemon.RegisterReadyChecker("cluster", func() bool {
+                return p.Cluster.Ready()
+            })
+            return nil
+        },
+        OnStop: func(ctx context.Context) error {
+            p.Daemon.UnregisterReadyChecker("cluster")
+            return nil
+        },
+    })
+}
+```
+
+**Semantics:**
+
+- Registering with the same `name` replaces the previous checker.
+- A `nil` `fn` is ignored (logged as a warning); use `UnregisterReadyChecker` to remove.
+- `UnregisterReadyChecker` on an unknown name is a no-op.
+- Pair register/unregister with `OnStart` / `OnStop` lifecycle hooks so a stopped module does not leave a dangling checker that holds `/ready` down.
+- Checkers run on every call to `Ready()` — including every `/ready` HTTP hit — so keep them cheap.
 
 ## Health Status Constants
 
@@ -77,7 +131,7 @@ When combined with `healthcheck_apis` module, provides HTTP endpoints:
 | Endpoint | Description | Success | Failure |
 |----------|-------------|---------|---------|
 | `GET /healthz` | Health status | 200 `{"status": "ok"}` | 500 `{"status": "unhealthy"}` |
-| `GET /ready` | Ready state | 200 `{"ready": true}` | 500 `{"ready": false}` |
+| `GET /ready` | Composite ready state (daemon started **and** every registered ready checker reports true) | 200 `{"ready": true}` | 500 `{"ready": false}` |
 
 ## Complete Example
 
