@@ -12,7 +12,8 @@ description: |
   nats, jetstream, redis, mailer, healthcheck, daemon, swagger, openapi, Uber Fx modules,
   HTTP, REST, API server, Go database, message queue, GORM, Gin, Viper, TOML, CORS,
   swag CLI, swag init, parseDependency, parseDependencyLevel, parseDepth, LeftDelim, RightDelim,
-  swag version mismatch, scalar UI, paths empty, swag v1.8.12, swag v1.16.
+  swag version mismatch, scalar UI, paths empty, swag v1.8.12, swag v1.16,
+  swag --dir, ParseComment error, antlr4-go, cannot find type definition, external module docs.
 ---
 
 # Common Modules Reference

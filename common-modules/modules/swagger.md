@@ -43,13 +43,15 @@ Add annotations to your main.go and handlers, then generate. The recommended inv
 go run github.com/swaggo/swag/cmd/swag@v1.16.6 init
 ```
 
-**With external modules** (using external weedbox modules like `user-modules`):
+**With external modules** (annotated handlers live in an external weedbox module like `user-modules`):
 
 ```bash
-go run github.com/swaggo/swag/cmd/swag@v1.16.6 init --parseDependency --parseDependencyLevel 3
+go run github.com/swaggo/swag/cmd/swag@v1.16.6 init \
+  --dir "./,$(go env GOMODCACHE)/github.com/weedbox/user-modules@v1.2.3/user_apis" \
+  --parseDependency --parseDependencyLevel 1
 ```
 
-The `--parseDependency` flag tells swag to scan Go dependencies for swagger annotations. This is **required** when using external weedbox modules that contain annotated handlers. The accompanying `--parseDependencyLevel` is only recognised by CLI `v1.16.x`+ — see the compatibility section for the `v1.8.12` equivalent and the post-generation fix-up needed against the pinned runtime.
+`--dir` scans the external module's source like first-party code so its `@Router` endpoints enter the spec, while `--parseDependencyLevel 1` resolves the model types those handlers reference. **Do not** use `--parseDependencyLevel 3` to pick up external operations — walking *every* dependency's operation comments aborts on malformed `@`-comments in unrelated third-party deps. The `--parseDependencyLevel` flag is only recognised by CLI `v1.16.x`+ — see [swag CLI Version Compatibility](#swag-cli-version-compatibility-important) for the rationale, the `--dir` details, and the post-generation fix-up needed against the pinned runtime.
 
 > **Note**: External library modules (e.g. `user-modules`) do NOT run `swag init`, do NOT have a `docs/` directory, and do NOT depend on swag. They only contain pure Go comment annotations on their handler functions.
 
@@ -277,10 +279,12 @@ This section explains how swagger works when API handlers live in an **external 
 //	@description				Enter your bearer token as: Bearer <token>
 ```
 
-2. Generate docs with dependency parsing:
+2. Generate docs, scanning the external module's source for its operation annotations and resolving model types via dependency parsing:
 
 ```bash
-swag init --parseDependency --parseDependencyLevel 3
+go run github.com/swaggo/swag/cmd/swag@v1.16.6 init \
+  --dir "./,$(go env GOMODCACHE)/github.com/weedbox/user-modules@v1.2.3/user_apis" \
+  --parseDependency --parseDependencyLevel 1
 ```
 
 3. Import generated docs and load the swagger module:
@@ -292,7 +296,7 @@ import _ "your-project/docs"
 swagger.Module("swagger"),
 ```
 
-The `--parseDependency` flag tells swag to scan all Go module dependencies for annotations, producing a unified Swagger spec that includes both local and external module endpoints.
+This produces a unified Swagger spec that includes both local and external module endpoints. The older `--parseDependencyLevel 3` approach (walk *all* dependency operations) is fragile — see [Dependency operation parsing](#dependency-operation-parsing-the---parsedependencylevel-3-trap-and-the---dir-fix) for why `--dir` is preferred.
 
 ## swag CLI Version Compatibility (Important)
 
@@ -312,7 +316,7 @@ The `common-modules/swagger` package pins the **runtime library** `github.com/sw
 | Purpose | `v1.8.12` flag | `v1.16.x` flag |
 |---------|----------------|----------------|
 | Enable dependency scanning | `--parseDependency` | `--parseDependency` (unchanged) |
-| Control dependency depth | `--parseDepth <N>` (AST depth, default 100) | `--parseDependencyLevel <N>` (module-hop level, e.g. `3`) |
+| Control dependency depth | `--parseDepth <N>` (AST depth, default 100) | `--parseDependencyLevel <N>` (module-hop level; use `1`, not `3` — see [Dependency operation parsing](#dependency-operation-parsing-the---parsedependencylevel-3-trap-and-the---dir-fix)) |
 
 Passing `--parseDependencyLevel` to `v1.8.12` produces `flag provided but not defined: -parseDependencyLevel`.
 
@@ -323,18 +327,79 @@ Drop this into a project Makefile so every developer gets a reproducible build r
 ```makefile
 SWAG_VERSION := v1.16.6
 
+# Directories swag scans for operation annotations (@Router/@Summary/@Param),
+# comma separated; the general-info file (main.go) must live in the FIRST one.
+# To document an external weedbox API module pulled in as a dependency, append
+# its source dir under the module cache, e.g.:
+#   SWAG_DIRS := ./,$(shell go env GOMODCACHE)/github.com/weedbox/user-modules@v1.2.3/user_apis
+# See "Dependency operation parsing" below for why this beats --parseDependencyLevel 3.
+SWAG_DIRS := ./
+
 # Generate Swagger docs.
-# - v1.16.6 CLI correctly parses external weedbox modules via --parseDependencyLevel.
+# - --parseDependencyLevel 1 parses ONLY the *models* inside dependencies, so
+#   handler annotations that reference external types still resolve. We avoid
+#   level 2/3 (which also walk dependency *operations*): swag would then choke
+#   on malformed @-directive comments in unrelated transitive deps (e.g.
+#   antlr4-go) and abort the whole run — see "Dependency operation parsing".
 # - The runtime lib pinned by common-modules/swagger (v1.8.12) does not know
 #   about LeftDelim/RightDelim, so we strip those two lines from docs.go.
 docs:
 	rm -rf docs
 	go run github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION) init \
-		--parseDependency --parseDependencyLevel 3
+		--dir $(SWAG_DIRS) \
+		--parseDependency --parseDependencyLevel 1
 	@sed -i.bak -e '/LeftDelim:/d' -e '/RightDelim:/d' docs/docs.go && rm docs/docs.go.bak
 ```
 
+> ⚠️ `rm -rf docs` runs **before** generation, so a failed `swag init` leaves you with no `docs/` directory at all. If generation fails, restore the previous spec with `git restore docs/` before retrying.
+
 `go run github.com/swaggo/swag/cmd/swag@<version>` avoids a global `go install` and pins the CLI version inside the repo — useful in CI and on machines where `$GOPATH/bin` is not on `$PATH`.
+
+> **Why level 1, not level 3?** Earlier versions of this guide recommended `--parseDependencyLevel 3`. That works only when the entire dependency tree is free of stray swagger-style comments. In data-heavy projects (Arrow / Iceberg / CEL pull in `antlr4-go`, etc.) level 3 aborts generation. The robust default is **level 1 + targeted `--dir`** — see the next section.
+
+### Dependency operation parsing: the `--parseDependencyLevel 3` trap and the `--dir` fix
+
+`--parseDependencyLevel` (v1.16.x) controls how deep swag reads into dependency packages:
+
+| Level | What swag parses inside dependencies |
+|-------|--------------------------------------|
+| `0` (default, no `--parseDependency`) | nothing |
+| `1` | **models only** — struct types referenced by your annotations |
+| `2` | **operations only** — `@Router` / `@Summary` / `@Param` comments |
+| `3` | **all** — models + operations |
+
+Levels `2` and `3` make swag read the *operation* comments of **every transitive dependency**. swag treats any `@param` / `@Success` it encounters as a swagger directive and fails the whole run if it cannot parse it or resolve a referenced type:
+
+```
+ParseComment error in .../antlr4-go/.../diagnostic_error_listener.go for comment:
+  '// @param ReportedAlts The set of conflicting ...': missing required param comment parameters ...
+```
+
+This is common in data-heavy projects: `antlr4-go` (pulled in transitively via CEL / Arrow / timewave, often as a **direct** dependency) carries Javadoc-style `@param` comments on ordinary functions, and any dependency whose annotated handler references a type swag can't resolve triggers `cannot find type definition`. **One bad comment anywhere in the dependency tree aborts generation** — you get no `docs/` at all.
+
+**These flags do NOT rescue level 3:**
+
+| Attempt | Why it fails |
+|---------|--------------|
+| `--exclude <dep path>` | `--exclude` only applies to the `--dir` search roots, never to packages loaded via `--parseDependency`. Verified ineffective. |
+| `--parseDepth 1` | Bounds AST recursion depth, not the dependency set. The offending dep is frequently **direct** (depth 1) via a transitive `require`, so even depth 1 still parses it. |
+| `--tags '!x'` | Tag filtering runs *after* comments are parsed; the parse error fires first. |
+
+**The fix — scan only the modules you actually want, with `--dir`:**
+
+Keep `--parseDependencyLevel 1` (models, so external types still resolve) and add the *specific* external weedbox API module's source directory to `--dir`. swag then scans it like first-party code, without walking every other dependency's operations:
+
+```bash
+go run github.com/swaggo/swag/cmd/swag@v1.16.6 init \
+  --dir "./,$(go env GOMODCACHE)/github.com/weedbox/user-modules@v1.2.3/user_apis" \
+  --parseDependency --parseDependencyLevel 1
+```
+
+- The general-info file (`main.go` with `@title` etc.) **must** be in the first `--dir`.
+- The external module's handlers reference request/response types. When the module is a real `require` of your project, `--parseDependencyLevel 1` resolves them automatically. If a referenced type lives in a sibling package that swag still reports as `cannot find type definition`, add that package's directory to `--dir` too (e.g. `.../user-modules@v1.2.3/user_apis,.../user-modules@v1.2.3/user`).
+- This is strictly more precise than level 3: you opt in exactly the modules you want documented and never touch unrelated third-party comments.
+
+**Verified**: a project whose own handlers live in `./`, plus an external `repository_manager_apis` module added via `--dir` (with its `repository_manager` type package), produced a single spec containing **both** endpoint sets (`/apis/v1/logs/*` and `/apis/v1/repos/*`) with zero dependency-walk failures.
 
 ### Legacy: using the `v1.8.12` CLI
 
@@ -383,6 +448,9 @@ docs:
 | `flag provided but not defined: -parseDependencyLevel` | Running `v1.8.12` CLI with the new flag name. | Either upgrade the CLI to `v1.16.x` or use `--parseDepth` instead. |
 | `unknown field LeftDelim in struct literal of type "github.com/swaggo/swag".Spec` | `v1.16.x` CLI generated `docs.go`, but project compiles against runtime `v1.8.12` (pinned by `common-modules`). | Strip the `LeftDelim:` / `RightDelim:` lines from `docs/docs.go` (the Makefile target above does this automatically). |
 | `paths: 0` in generated `swagger.json` despite annotations existing in external modules. | Using `v1.8.12` CLI — its dependency parser does not see handlers in nested module dependencies. | Switch to `v1.16.x` CLI. |
+| `ParseComment error ... @param ...` in a **third-party** dependency (e.g. `antlr4-go`). | `--parseDependencyLevel 2/3` parses the operation comments of every transitive dep; one malformed `@`-comment aborts the run. `--exclude`/`--parseDepth`/`--tags` do not help. | Drop to `--parseDependencyLevel 1` and pull in the specific external API module via `--dir` instead. See [Dependency operation parsing](#dependency-operation-parsing-the---parsedependencylevel-3-trap-and-the---dir-fix). |
+| `cannot find type definition: X` while swag parses a dependency. | Level 2/3 reached a dependency handler whose referenced type isn't resolvable. | Same fix: level 1 + `--dir` the module (and its type-source package if the type is reported missing). |
+| Empty or missing `docs/` after a failed `swag init`. | The `rm -rf docs` in the Makefile target ran *before* generation failed. | `git restore docs/`, fix the swag invocation, then regenerate. |
 | `swag: command not found` in CI | `swag` CLI not installed on `$PATH`. | Use `go run github.com/swaggo/swag/cmd/swag@v1.16.6 init ...` — no global install needed. |
 
 ### Why not just upgrade the runtime lib?
