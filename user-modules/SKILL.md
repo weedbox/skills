@@ -285,6 +285,8 @@ Client                    Server
 
 The two-layer middleware design (`authenticate` + `require_permission`) supports ingress/gateway architectures where token validation happens at the edge and user info is forwarded via the `X-User-Info` header.
 
+> **Security — pick a trust mode.** Because `X-User-Info` is a plain request header, whether `authenticate` trusts an inbound one is controlled by `auth.mode`: the default `standalone` strips it (identity comes only from a JWT this service validates), while `gateway` trusts a value injected by a trusted upstream. A directly-reachable service must **not** run in `gateway` mode, or a client can forge identity and roles. See [auth: Security: Identity Trust Modes](./modules/auth.md#security-identity-trust-modes).
+
 ---
 
 ## Using Auth Middleware in Custom Modules

@@ -36,12 +36,15 @@ On startup, the module:
 
 Once mounted, **every** incoming request goes through the authenticate middleware:
 
+- First, the inbound `X-User-Info` header is trusted or stripped according to `auth.mode` (`standalone` strips it; `gateway` keeps the upstream-injected one — see [auth: Security: Identity Trust Modes](./auth.md#security-identity-trust-modes)).
 - Request with `Authorization: Bearer <token>` → token is validated
-  - Valid token: `X-User-Info` header is set with session data
+  - Valid token: `X-User-Info` header is **overwritten** with session data from the token
   - Invalid/expired token: Request is rejected with `401 Unauthorized`
-- Request with **no** `Authorization` header → passes through without modification
+- Request with **no** `Authorization` header → passes through; identity, if any, is the trusted `X-User-Info` from the mode step
 
 Unauthenticated requests are still allowed — it's the `require_permission` middleware on individual routes that enforces authentication.
+
+> ⚠️ With the default `standalone` mode, a client cannot forge `X-User-Info` — it is stripped before any handler sees it. If you deploy behind a gateway that injects `X-User-Info`, you must set `auth.mode = "gateway"` (and satisfy its safety requirements) or the injected identity is discarded.
 
 ## When to Use
 

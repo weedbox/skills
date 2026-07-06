@@ -36,6 +36,8 @@ func loadModules() ([]fx.Option, error) {
 | `{scope}.access_token_expiry` | `duration` | `"15m"` | Access token lifetime |
 | `{scope}.refresh_token_expiry` | `duration` | `"168h"` (7 days) | Refresh token lifetime |
 | `{scope}.issuer` | `string` | `"weedbox"` | JWT issuer claim |
+| `{scope}.mode` | `string` | `"standalone"` | Identity trust mode: `"standalone"` or `"gateway"` (see [Security: Identity Trust Modes](#security-identity-trust-modes)) |
+| `{scope}.trusted_header_secret` | `string` | `""` | Gateway mode only: trust inbound `X-User-Info` only when `X-Gateway-Secret` matches |
 
 ### TOML Example
 
@@ -45,9 +47,11 @@ jwt_secret = "your-production-secret-key"
 access_token_expiry = "15m"
 refresh_token_expiry = "168h"
 issuer = "my-app"
+mode = "standalone"          # or "gateway" behind a trusted ingress
+# trusted_header_secret = "shared-secret-with-gateway"
 ```
 
-**Important:** Always override `jwt_secret` in production.
+**Important:** Always override `jwt_secret` in production. Behind a gateway that injects `X-User-Info`, set `mode = "gateway"` (see [Security: Identity Trust Modes](#security-identity-trust-modes)).
 
 ## Data Model
 
@@ -96,10 +100,11 @@ The `RefreshToken` model maps to the `refresh_tokens` table:
 
 ### `"authenticate"` — Token Validation
 
-Returns `gin.HandlerFunc`. Validates JWT and sets `X-User-Info` header:
+Returns `gin.HandlerFunc`. Establishes trust in `X-User-Info`, then validates the JWT:
 
-- No token → passes through (allows unauthenticated access)
-- Valid token → sets `X-User-Info` header with base64-encoded session
+- **Trust step (by `mode`):** `standalone` strips any client-supplied `X-User-Info`; `gateway` keeps the upstream-injected one (only if `X-Gateway-Secret` matches when `trusted_header_secret` is set).
+- No token → passes through (identity, if any, is the trusted `X-User-Info` from the trust step)
+- Valid token → **overwrites** `X-User-Info` with base64-encoded session from the token
 - Invalid/expired token → returns `401 Unauthorized`
 
 ```go
@@ -111,15 +116,34 @@ router.Use(authMiddleware)
 
 Returns `func(string) gin.HandlerFunc`. Reads `X-User-Info` and checks RBAC:
 
-- Permission `"*"` → passes through (public endpoint)
-- Reads `X-User-Info`, decodes session, checks RBAC permissions
+- Permission `"*"` → **optional auth**: populates identity into the context when a trusted `X-User-Info` is present, but never rejects (public endpoint)
+- Permission `""` → requires authentication but skips RBAC (any logged-in user; use for `/me`, self-service routes)
+- Non-empty permission → reads `X-User-Info`, decodes session, checks RBAC permissions
 - Returns `401` if not authenticated, `403` if insufficient permissions
 
 ```go
 requirePerm := authManager.GetMiddleware("require_permission").(func(string) gin.HandlerFunc)
 router.GET("/users", requirePerm("user.list"), listHandler)
+router.GET("/me", requirePerm(""), meHandler)        // any authenticated user
 router.POST("/public", requirePerm("*"), publicHandler)
 ```
+
+## Security: Identity Trust Modes
+
+`X-User-Info` carries the caller's identity **and roles** between the two middleware layers, and `require_permission` trusts it for both authentication and RBAC. Since it is an ordinary request header, a client could forge it — so `authenticate` decides when an inbound `X-User-Info` is trustworthy via `mode`:
+
+| Mode | Inbound `X-User-Info` | Use when |
+|------|-----------------------|----------|
+| `standalone` (default) | **Stripped** — identity comes only from a JWT this service validates | Service validates tokens itself (single service, direct exposure, dev) |
+| `gateway` | **Trusted** (upstream-injected; optionally gated by `trusted_header_secret`) | Service sits behind a gateway that terminates auth and injects `X-User-Info` |
+
+**`gateway` mode is only safe when:**
+
+1. The service is reachable **only** through the gateway (network policy / mTLS).
+2. The gateway **strips** any client-supplied `X-User-Info` before injecting its own.
+3. Recommended: set `trusted_header_secret` and have the gateway send a matching `X-Gateway-Secret`, so the service verifies the caller is the gateway rather than trusting the network alone.
+
+> ⚠️ Running a directly-reachable service in `gateway` mode without (1) and (2) lets any client forge identity and roles (full impersonation + privilege escalation). The default is `standalone` so this trust must be opted into explicitly.
 
 ## Context Helpers
 
