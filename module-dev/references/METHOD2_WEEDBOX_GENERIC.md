@@ -4,6 +4,15 @@ This approach uses `weedbox.Module[P]` generics for cleaner code with built-in l
 
 **Reference Implementation**: `pkg/pkg_manager/module.go`
 
+## Contents
+
+- [Critical Rules](#️-critical-rules) / [When to Use](#when-to-use)
+- [Complete Template](#complete-template) and [Key Components](#key-components)
+- [Built-in Methods](#built-in-methods-from-weedboxmodule) / [Lifecycle Interface Methods](#lifecycle-interface-methods)
+- [Injecting Method 2 Modules](#injecting-method-2-modules) / [Scope Names Reference](#scope-names-reference)
+- [Example: With Database and Event Manager](#example-with-database-and-event-manager)
+- [Comparison with Method 1](#comparison-with-method-1) / [Checklist](#checklist)
+
 ## ⚠️ Critical Rules
 
 | Rule | Example |
@@ -251,6 +260,7 @@ import (
     "context"
 
     "github.com/BrobridgeOrg/plasma-backend/pkg/event_manager"
+    "github.com/BrobridgeOrg/plasma-backend/pkg/mymodule/models"
     "github.com/spf13/viper"
     "github.com/weedbox/common-modules/database"
     "github.com/weedbox/weedbox"

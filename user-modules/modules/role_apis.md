@@ -2,6 +2,16 @@
 
 REST API handlers for role and resource management. Provides CRUD operations on roles, permission assignment/removal, and resource browsing endpoints.
 
+## Contents
+
+- [Installation](#installation)
+- [Usage in Fx](#usage-in-fx)
+- [Dependencies](#dependencies)
+- [API Endpoints](#api-endpoints)
+- [Request / Response Structures](#request--response-structures)
+- [Error Handling](#error-handling)
+- [Related](#related)
+
 ## Installation
 
 ```bash

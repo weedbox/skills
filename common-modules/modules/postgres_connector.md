@@ -115,19 +115,21 @@ conn_max_idle_time = 600   # 10 minutes
 
 ### Environment Variables
 
+Environment variables require the app prefix passed to `configs.NewConfig()` — `MYAPP` shown here.
+
 ```bash
-export DATABASE_HOST=localhost
-export DATABASE_PORT=5432
-export DATABASE_DBNAME=myapp
-export DATABASE_USER=postgres
-export DATABASE_PASSWORD=secret
-export DATABASE_SSLMODE=false
-export DATABASE_LOGLEVEL=2
-export DATABASE_DEBUG_MODE=false
-export DATABASE_MAX_OPEN_CONNS=50
-export DATABASE_MAX_IDLE_CONNS=25
-export DATABASE_CONN_MAX_LIFETIME=1800
-export DATABASE_CONN_MAX_IDLE_TIME=600
+export MYAPP_DATABASE_HOST=localhost
+export MYAPP_DATABASE_PORT=5432
+export MYAPP_DATABASE_DBNAME=myapp
+export MYAPP_DATABASE_USER=postgres
+export MYAPP_DATABASE_PASSWORD=secret
+export MYAPP_DATABASE_SSLMODE=false
+export MYAPP_DATABASE_LOGLEVEL=2
+export MYAPP_DATABASE_DEBUG_MODE=false
+export MYAPP_DATABASE_MAX_OPEN_CONNS=50
+export MYAPP_DATABASE_MAX_IDLE_CONNS=25
+export MYAPP_DATABASE_CONN_MAX_LIFETIME=1800
+export MYAPP_DATABASE_CONN_MAX_IDLE_TIME=600
 ```
 
 ## Usage in Modules
@@ -179,9 +181,13 @@ Useful for development; disable in production.
 
 ## SSL Mode
 
-The connector exposes a single boolean `sslmode` that maps to `sslmode=enable` or `sslmode=disable` in the DSN. If you need full PostgreSQL SSL modes (`require` / `verify-ca` / `verify-full`), the connector currently does not expose them — open an issue or extend the DSN builder.
+The connector exposes a single **boolean** `sslmode` config: `false` (the default) puts `sslmode=disable` in the DSN, `true` puts `sslmode=enable`.
 
-| Mode | Description |
+> ⚠️ **Caution**: `enable` is not a standard libpq sslmode value, so enabling SSL may be rejected by the driver — verify against your PostgreSQL setup before relying on `sslmode = true`.
+
+For reference, these are the **standard PostgreSQL sslmode values**. This connector does **NOT** support configuring them — if you need `require` / `verify-ca` / `verify-full`, open an issue or extend the DSN builder:
+
+| Standard value (not configurable here) | Description |
 |------|-------------|
 | `disable` | No SSL |
 | `require` | Always SSL, no verification |

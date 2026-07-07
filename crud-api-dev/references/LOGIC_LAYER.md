@@ -2,6 +2,16 @@
 
 This document covers the implementation of the business logic layer for CRUD operations.
 
+## Table of Contents
+
+- [1. Database Model (`models/myresource.go`)](#1-database-model-modelsmyresourcego)
+- [2. Error Definitions (`errors.go`)](#2-error-definitions-errorsgo)
+- [3. Internal Structures (`codec.go`)](#3-internal-structures-codecgo)
+- [4. Module Definition (`module.go`)](#4-module-definition-modulego)
+- [5. CRUD Business Logic (`manager.go`)](#5-crud-business-logic-managergo)
+- [GORM Error Handling Best Practices](#gorm-error-handling-best-practices)
+- [Development Checklist](#development-checklist)
+
 ## Directory Structure
 
 ```
@@ -24,6 +34,8 @@ import (
 )
 
 // BaseModel shared base model
+// Note: this BaseModel intentionally holds only timestamps, with ID declared on
+// the concrete model — unlike the module-dev skill's BaseModel, which includes ID.
 type BaseModel struct {
     CreatedAt time.Time `gorm:"index" json:"created_at"`
     UpdatedAt time.Time `gorm:"index" json:"updated_at"`
@@ -277,11 +289,13 @@ func (m *MyResourceManager) Create(ctx context.Context, workspaceID string, cfg 
 }
 
 // Get retrieves a single resource
-func (m *MyResourceManager) Get(ctx context.Context, resourceID string) (*Resource, error) {
+// Note: single-item operations must be scoped by workspace_id, otherwise any
+// caller can access another workspace's resources by guessing IDs.
+func (m *MyResourceManager) Get(ctx context.Context, workspaceID, resourceID string) (*Resource, error) {
     var resource models.MyResource
 
     db := m.Params().Database.GetDB().WithContext(ctx)
-    if err := db.Where("id = ?", resourceID).First(&resource).Error; err != nil {
+    if err := db.Where("id = ? AND workspace_id = ?", resourceID, workspaceID).First(&resource).Error; err != nil {
         if errors.Is(err, gorm.ErrRecordNotFound) {
             return nil, ErrNotFound
         }
@@ -292,11 +306,11 @@ func (m *MyResourceManager) Get(ctx context.Context, resourceID string) (*Resour
 }
 
 // Update updates a resource
-func (m *MyResourceManager) Update(ctx context.Context, resourceID string, cfg *ResourceConfig) (*Resource, error) {
+func (m *MyResourceManager) Update(ctx context.Context, workspaceID, resourceID string, cfg *ResourceConfig) (*Resource, error) {
     var resource models.MyResource
 
     db := m.Params().Database.GetDB().WithContext(ctx)
-    if err := db.Where("id = ?", resourceID).First(&resource).Error; err != nil {
+    if err := db.Where("id = ? AND workspace_id = ?", resourceID, workspaceID).First(&resource).Error; err != nil {
         if errors.Is(err, gorm.ErrRecordNotFound) {
             return nil, ErrNotFound
         }
@@ -323,10 +337,10 @@ func (m *MyResourceManager) Update(ctx context.Context, resourceID string, cfg *
 }
 
 // Delete deletes a resource
-func (m *MyResourceManager) Delete(ctx context.Context, resourceID string) error {
+func (m *MyResourceManager) Delete(ctx context.Context, workspaceID, resourceID string) error {
     db := m.Params().Database.GetDB().WithContext(ctx)
 
-    result := db.Where("id = ?", resourceID).Delete(&models.MyResource{})
+    result := db.Where("id = ? AND workspace_id = ?", resourceID, workspaceID).Delete(&models.MyResource{})
     if result.Error != nil {
         return fmt.Errorf("failed to delete resource: %w", result.Error)
     }

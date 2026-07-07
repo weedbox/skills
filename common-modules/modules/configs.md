@@ -8,7 +8,7 @@ Configuration management using Viper with TOML file and environment variable sup
 go get github.com/weedbox/common-modules/configs
 ```
 
-## Usage
+## Basic Usage
 
 ```go
 import "github.com/weedbox/common-modules/configs"
@@ -45,13 +45,13 @@ Settings are resolved in this order (highest priority first):
 
 ## Environment Variable Mapping
 
-Variables use the pattern `PREFIX_KEY_NAME`, where dots and dashes convert to underscores.
+Variables use the pattern `PREFIX_KEY_NAME`, where dots and dashes convert to underscores. camelCase key segments are **NOT** split (e.g. `maxReconnects` → `MAXRECONNECTS` — one token, no extra underscore).
 
 | Config Key | Environment Variable |
 |------------|---------------------|
 | `http_server.port` | `MYAPP_HTTP_SERVER_PORT` |
 | `database.host` | `MYAPP_DATABASE_HOST` |
-| `nats.max_reconnects` | `MYAPP_NATS_MAX_RECONNECTS` |
+| `nats.maxReconnects` | `MYAPP_NATS_MAXRECONNECTS` |
 
 ## TOML Format
 
@@ -78,7 +78,7 @@ dbname = "myapp"
 | `PrintAllSettings()` | Print all settings to stdout |
 | `PrintSettings(scope, map)` | Print settings for a specific scope |
 
-## Integration with Fx
+## Usage in Fx
 
 ```go
 package main

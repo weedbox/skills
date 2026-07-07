@@ -60,10 +60,12 @@ allow_headers = "Authorization,Accept,Content-Type"
 
 ### Environment Variables
 
+Environment variables require the app prefix passed to `configs.NewConfig()` — `MYAPP` shown here.
+
 ```bash
-export HTTP_SERVER_HOST=0.0.0.0
-export HTTP_SERVER_PORT=8080
-export HTTP_SERVER_MODE=release
+export MYAPP_HTTP_SERVER_HOST=0.0.0.0
+export MYAPP_HTTP_SERVER_PORT=8080
+export MYAPP_HTTP_SERVER_MODE=release
 ```
 
 ## Registering Routes

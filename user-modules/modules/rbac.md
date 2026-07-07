@@ -69,14 +69,14 @@ rbac.Module("rbac",
     rbac.WithDefaultRoles(map[string]privy.RoleConfig{
         "operator": {
             Name:        "Operator",
-            Description: "Product operator",
+            Description: "Can manage products",
             Permissions: []string{"product.*"},
         },
     }),
 )
 ```
 
-Custom resources and roles are **merged** with the builtins (`user`, `auth`, `admin`, `user`). If a custom role key matches a builtin key, the custom definition takes precedence.
+Custom resources and roles are **merged** with the builtin resources (`user`, `auth`, `role`) and builtin roles (`admin`, `user`). If a custom role key matches a builtin key, the custom definition takes precedence.
 
 ## Options
 

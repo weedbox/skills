@@ -34,7 +34,7 @@ This skill provides detailed usage instructions for all modules in `github.com/w
 
 | Module | Description | Documentation |
 |--------|-------------|---------------|
-| `http_server` | Gin-based HTTP server with CORS support | [http_server.md](./modules/http_server.md) |
+| `http_server` | Gin-based HTTP server with CORS and static file/SPA support | [http_server.md](./modules/http_server.md) |
 | `healthcheck_apis` | Kubernetes-compatible health check endpoints | [healthcheck_apis.md](./modules/healthcheck_apis.md) |
 | `swagger` | Swagger/OpenAPI documentation with Scalar UI | [swagger.md](./modules/swagger.md) |
 
@@ -106,7 +106,7 @@ When a single connector / module is loaded, inject it **without** a `name` tag:
 Database   database.DatabaseConnector
 HTTPServer *http_server.HTTPServer
 
-// ❌ Wrong - no name tag needed
+// ❌ Wrong - do not add a name tag for single-load modules
 Database   database.DatabaseConnector `name:"database"`
 HTTPServer *http_server.HTTPServer    `name:"http_server"`
 ```
@@ -197,7 +197,7 @@ Modules should be loaded in three phases:
 
 | Phase | Purpose | Modules |
 |-------|---------|---------|
-| **1. Preload** | Configuration and logging | `configs`, `logger` |
+| **1. Preload** | Configuration, logging, embedded infrastructure | `configs`, `logger`, `nats_jetstream_server` (must be running before `nats_connector` connects) |
 | **2. Load** | Application modules | `http_server`, `swagger`, `healthcheck_apis`, `database`, `nats_connector`, `scheduler`, `redis_connector`, `mailer`, custom modules |
 | **3. After** | Lifecycle management | `daemon` (must be last) |
 

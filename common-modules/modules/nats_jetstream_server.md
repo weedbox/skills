@@ -118,12 +118,14 @@ routes = ["nats://node2:6222", "nats://node3:6222"]
 
 ### Environment Variables
 
+Environment variables require the app prefix passed to `configs.NewConfig()` — `MYAPP` shown here.
+
 ```bash
-export NATS_SERVER_HOST=0.0.0.0
-export NATS_SERVER_PORT=4222
-export NATS_SERVER_HTTP_PORT=8222
-export NATS_SERVER_JETSTREAM_ENABLED=true
-export NATS_SERVER_JETSTREAM_STORE_DIR=./data/jetstream
+export MYAPP_NATS_SERVER_HOST=0.0.0.0
+export MYAPP_NATS_SERVER_PORT=4222
+export MYAPP_NATS_SERVER_HTTP_PORT=8222
+export MYAPP_NATS_SERVER_JETSTREAM_ENABLED=true
+export MYAPP_NATS_SERVER_JETSTREAM_STORE_DIR=./data/jetstream
 ```
 
 ## API Methods
@@ -236,18 +238,19 @@ The embedded server is best for:
 ```go
 func initModules() ([]fx.Option, error) {
     return []fx.Option{
+        // Phase 1: Preload — the embedded NATS server must be running
+        // before nats_connector connects
         fx.Supply(config),
         logger.Module(),
-
-        // Start embedded NATS server
         nats_jetstream_server.Module("nats_server"),
 
-        // Connect to it
+        // Phase 2: Load — connect to the embedded server
         nats_connector.Module("nats"),
 
         // Your modules using NATS
         mymodule.Module("mymodule"),
 
+        // Phase 3: After (daemon must be last)
         daemon.Module("daemon"),
     }, nil
 }

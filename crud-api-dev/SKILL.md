@@ -109,6 +109,8 @@ func (m *MyAPIs) create(c *gin.Context) {
 
 ### Module Pattern (Method 2)
 
+See [../module-dev/SKILL.md](../module-dev/SKILL.md) for the module creation methods.
+
 ```go
 type Params struct {
     weedbox.Params
@@ -149,7 +151,7 @@ type MyResource struct {
 ```go
 qh := queryhelper.NewQueryHelper(
     queryhelper.WithPage(1),
-    queryhelper.WithPageSize(20),
+    queryhelper.WithPageSize(10),
     queryhelper.WithSearchText("keyword"),
     queryhelper.WithSearchFields([]string{"name", "description"}),
     queryhelper.WithOrderBy([]string{"created_at"}),
@@ -161,7 +163,7 @@ qh := queryhelper.NewQueryHelper(
 ### Security Settings
 
 ```go
-var QuerySettings = &queryhelper.QuerySettings{
+var DefaultQuerySettings_ListResources = &queryhelper.QuerySettings{
     AllowedOrderBy: []string{"created_at", "updated_at", "name"},
     AllowedSearch:  []string{"name", "description"},
     AllowedFilters: map[string][]string{
@@ -251,10 +253,10 @@ func loadModules() ([]fx.Option, error) {
 ### API Layer
 - [ ] Create `pkg/myresource_apis/` directory
 - [ ] Define request structures with URI/Body/Query separation `codec.go`
-- [ ] Define response structures `codec.go`
+- [ ] Define response structures and `ErrorResponse` `codec.go`
 - [ ] Implement module definition (Method 2) `module.go`
 - [ ] Implement HTTP handlers with proper binding order `apis.go`
-- [ ] Add Swagger annotations
+- [ ] Add Swagger annotations (tab-indented format)
 - [ ] Register module in `modules.go`
 - [ ] Run `swag init --parseDependency --parseDependencyLevel 3` to update docs
 

@@ -2,6 +2,15 @@
 
 This document covers the implementation of the HTTP API layer for CRUD operations using Gin framework.
 
+## Table of Contents
+
+- [1. Request/Response Structures (`codec.go`)](#1-requestresponse-structures-codecgo)
+- [2. Module Definition (`module.go`)](#2-module-definition-modulego)
+- [3. HTTP Handlers (`apis.go`)](#3-http-handlers-apisgo)
+- [Request Binding Pattern](#request-binding-pattern)
+- [Swagger Annotation Format](#swagger-annotation-format)
+- [Development Checklist](#development-checklist)
+
 ## Directory Structure
 
 ```
@@ -228,6 +237,7 @@ func (m *MyResourceAPIs) OnStop(ctx context.Context) error {
 package myresource_apis
 
 import (
+    "errors"
     "net/http"
     "strings"
     "time"
@@ -280,7 +290,7 @@ func (m *MyResourceAPIs) create(c *gin.Context) {
     ctx := c.Request.Context()
     resource, err := m.Params().MyResource.Create(ctx, req.URI.WorkspaceID, cfg)
     if err != nil {
-        if err == myresource.ErrNameExists {
+        if errors.Is(err, myresource.ErrNameExists) {
             c.JSON(http.StatusConflict, gin.H{"error": "Resource name already exists"})
             return
         }
@@ -319,10 +329,12 @@ func (m *MyResourceAPIs) get(c *gin.Context) {
         return
     }
 
+    // Single-item operations must be scoped by workspace_id, otherwise any
+    // caller can access another workspace's resources by guessing IDs.
     ctx := c.Request.Context()
-    resource, err := m.Params().MyResource.Get(ctx, req.URI.ID)
+    resource, err := m.Params().MyResource.Get(ctx, req.URI.WorkspaceID, req.URI.ID)
     if err != nil {
-        if err == myresource.ErrNotFound {
+        if errors.Is(err, myresource.ErrNotFound) {
             c.JSON(http.StatusNotFound, gin.H{"error": "Resource not found"})
             return
         }
@@ -374,9 +386,9 @@ func (m *MyResourceAPIs) update(c *gin.Context) {
     }
 
     ctx := c.Request.Context()
-    resource, err := m.Params().MyResource.Update(ctx, req.URI.ID, cfg)
+    resource, err := m.Params().MyResource.Update(ctx, req.URI.WorkspaceID, req.URI.ID, cfg)
     if err != nil {
-        if err == myresource.ErrNotFound {
+        if errors.Is(err, myresource.ErrNotFound) {
             c.JSON(http.StatusNotFound, gin.H{"error": "Resource not found"})
             return
         }
@@ -415,9 +427,9 @@ func (m *MyResourceAPIs) delete(c *gin.Context) {
     }
 
     ctx := c.Request.Context()
-    err := m.Params().MyResource.Delete(ctx, req.URI.ID)
+    err := m.Params().MyResource.Delete(ctx, req.URI.WorkspaceID, req.URI.ID)
     if err != nil {
-        if err == myresource.ErrNotFound {
+        if errors.Is(err, myresource.ErrNotFound) {
             c.JSON(http.StatusNotFound, gin.H{"error": "Resource not found"})
             return
         }
@@ -476,6 +488,9 @@ func (m *MyResourceAPIs) list(c *gin.Context) {
     if req.Query.Order == 0 {
         req.Query.Order = 1
     }
+    // Note: this skill defaults order=1 (ascending), while user-modules' user_apis
+    // defaults to -1 (descending) — pick whichever default your project uses, but
+    // keep handler, Swagger annotation, and docs in agreement.
 
     // Parse comma-separated fields
     searchFields := parseCommaSeparated(req.Query.SearchFields)

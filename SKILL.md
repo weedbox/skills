@@ -38,19 +38,22 @@ When user requests to "add XXX feature/module", check existing libraries first:
 3. **If exists** → Use it directly, do NOT implement from scratch
 4. **If not exists** → Then use module-dev to create new module
 
-**Available modules in common-modules**:
+**Available modules in common-modules** (full index in [common-modules/SKILL.md](./common-modules/SKILL.md)):
+- `configs` - Configuration management (Viper, TOML, env vars)
+- `logger` - Logging
 - `healthcheck_apis` - Health check endpoints
 - `http_server` - HTTP server
 - `swagger` - API documentation
+- `database` - Database connector interface
 - `postgres_connector` / `sqlite_connector` - Database
 - `nats_connector` - Message queue
+- `nats_jetstream_server` - Embedded NATS JetStream server
 - `scheduler` - Job scheduler (GORM / NATS JetStream)
 - `redis_connector` - Cache
 - `mailer` - Email sending
-- `logger` - Logging
 - `daemon` - Service lifecycle
 
-**Available modules in user-modules**:
+**Available modules in user-modules** (full index in [user-modules/SKILL.md](./user-modules/SKILL.md)):
 - `user` - User management (CRUD, bcrypt, UUID v7)
 - `auth` - JWT authentication with refresh token rotation
 - `rbac` - Role-based access control (privy integration)

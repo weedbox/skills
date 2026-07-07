@@ -41,11 +41,13 @@ db = 0
 
 ### Environment Variables
 
+Environment variables require the app prefix passed to `configs.NewConfig()` — `MYAPP` shown here.
+
 ```bash
-export REDIS_HOST=localhost
-export REDIS_PORT=6379
-export REDIS_PASSWORD=secret
-export REDIS_DB=0
+export MYAPP_REDIS_HOST=localhost
+export MYAPP_REDIS_PORT=6379
+export MYAPP_REDIS_PASSWORD=secret
+export MYAPP_REDIS_DB=0
 ```
 
 ## Basic Usage

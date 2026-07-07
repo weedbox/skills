@@ -34,6 +34,8 @@ Sub-resource: **password**
 | logout | `auth.logout` | User logout |
 | refresh | `auth.refresh` | Refresh token |
 
+> **Note:** The `auth.*` permissions are defined for completeness and custom gating; the shipped [auth_apis](./auth_apis.md) endpoints are public (permission `"*"`) and do not enforce them.
+
 ### role
 
 | Action | Permission String | Description |
@@ -128,7 +130,7 @@ These merge functions are used internally by the `rbac` module when you pass opt
 | Function | Returns | Description |
 |----------|---------|-------------|
 | `CRUDActions()` | `[]privy.Action` | Standard create/read/update/delete/list actions |
-| `GetBuiltinResourceConfigs()` | `[]privy.ResourceConfig` | Builtin user + auth resource definitions |
+| `GetBuiltinResourceConfigs()` | `[]privy.ResourceConfig` | Builtin user, auth, and role resource definitions |
 | `GetBuiltinDefaultRoles()` | `map[string]privy.RoleConfig` | Builtin admin/user role definitions |
 | `MergeResourceConfigs(extra)` | `[]privy.ResourceConfig` | Merge builtins with extra resources |
 | `MergeDefaultRoles(extra)` | `map[string]privy.RoleConfig` | Merge builtins with extra roles |

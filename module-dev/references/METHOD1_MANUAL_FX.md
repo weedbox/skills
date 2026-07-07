@@ -22,6 +22,8 @@ import (
     "github.com/weedbox/common-modules/database"
     "go.uber.org/fx"
     "go.uber.org/zap"
+
+    "your-project/pkg/mymodule/models"
 )
 
 // Module configuration defaults

@@ -29,13 +29,47 @@ Skills 是 Claude Code 的擴展功能，透過提供特定領域的知識和指
 - 生命週期 hooks
 - 資料模型設計
 - 事件處理
+- 建立模組專屬的 skills 文件
 
-**兩種模組開發方法：**
+**三種模組開發方法：**
 
 | 方法 | 說明 | 適用場景 |
 |------|------|----------|
 | Method 1: Manual FX | 手動控制 FX 依賴注入 | 需要複雜 FX 註解或細粒度控制 |
 | Method 2: Weedbox Generic | 使用 `weedbox.Module[P]` 泛型 (推薦) | 新模組、簡單依賴、減少樣板程式碼 |
+| Method 3: Interface Module | 使用 `fxmodule.InterfaceModule` 建立可抽換實作 | Connector 類型、需要可互換後端的模組 |
+
+**Module Skills：**
+
+每個模組可以擁有自己的 `.skills/` 目錄，存放開發文件：
+
+```
+pkg/mymodule/.skills/mymodule-development.md
+pkg/mymodule_apis/.skills/mymodule-apis-development.md
+```
+
+### common-modules
+
+`github.com/weedbox/common-modules` 的參考文件 — 可重用的 weedbox 基礎設施模組：
+
+- 設定管理（Viper、TOML、環境變數）
+- 結構化日誌與健康檢查端點
+- HTTP 伺服器（Gin），支援 CORS 與靜態檔案/SPA
+- 資料庫 connector（PostgreSQL、SQLite、GORM）
+- NATS 訊息傳遞與內嵌 JetStream 伺服器
+- Redis 快取、SMTP 郵件、排程器
+- Swagger/OpenAPI 文件
+
+### user-modules
+
+`github.com/weedbox/user-modules` 的參考文件 — 可重用的使用者管理、認證與 RBAC 模組：
+
+- 使用者 CRUD，搭配 bcrypt 密碼雜湊與 UUID v7 ID
+- JWT 認證與 refresh token 輪替
+- 以 privy 為基礎的角色權限控制 (RBAC)
+- 可直接使用的使用者、認證、角色/資源管理 REST API 端點
+- 可擴充的權限系統與合併 API
+- 選用的全域 JWT 驗證 middleware
 
 ### crud-api-dev
 
@@ -124,23 +158,62 @@ skills/
 ├── README.zh-TW.md
 ├── LICENSE
 ├── project-dev/
-│   └── SKILL.md                              # 專案設定技能
+│   ├── SKILL.md                              # 專案設定技能
+│   └── references/
+│       ├── licenses.md                       # 授權範本 (Apache-2.0, MIT, Proprietary)
+│       └── docker.md                         # Dockerfile 範本與容器化指南
 ├── module-dev/
 │   ├── SKILL.md                              # 模組開發技能
 │   └── references/
 │       ├── METHOD1_MANUAL_FX.md              # 手動 FX 模組詳細說明
-│       └── METHOD2_WEEDBOX_GENERIC.md        # Weedbox 泛型模組詳細說明
-└── crud-api-dev/
-    ├── SKILL.md                              # CRUD API 開發技能
-    └── references/
-        ├── LOGIC_LAYER.md                    # 業務邏輯層詳細說明
-        └── API_LAYER.md                      # HTTP API 層詳細說明
+│       ├── METHOD2_WEEDBOX_GENERIC.md        # Weedbox 泛型模組詳細說明
+│       ├── METHOD3_INTERFACE_MODULE.md       # Interface/connector 模組詳細說明
+│       ├── DATABASE_MODELS.md                # GORM 模型與索引慣例
+│       └── MODULE_SKILLS.md                  # Module skills 撰寫指南
+├── crud-api-dev/
+│   ├── SKILL.md                              # CRUD API 開發技能
+│   └── references/
+│       ├── LOGIC_LAYER.md                    # 業務邏輯層詳細說明
+│       └── API_LAYER.md                      # HTTP API 層詳細說明
+├── common-modules/
+│   ├── SKILL.md                              # Common modules 參考技能
+│   └── modules/                              # 各模組文件 (configs, logger, http_server,
+│                                             #   database, nats, redis, mailer, scheduler, ...)
+└── user-modules/
+    ├── SKILL.md                              # User modules 參考技能
+    └── modules/
+        ├── permissions.md                    # 權限定義與擴充 API
+        ├── rbac.md                           # 以 privy 為基礎的 RBAC manager
+        ├── user.md                           # 使用者 CRUD 與密碼管理
+        ├── auth.md                           # JWT 認證與 middleware
+        ├── user_apis.md                      # 使用者 REST API 端點
+        ├── auth_apis.md                      # 認證 REST API 端點
+        ├── role_apis.md                      # 角色/資源 REST API 端點
+        └── http_token_validator.md           # 全域 JWT 驗證 middleware
 ```
+
+## 模組專屬 Skills
+
+Weedbox 專案可以在 `.skills/` 目錄中包含模組專屬的 skills：
+
+```
+pkg/
+├── product/
+│   └── .skills/
+│       └── product-development.md            # Product 模組文件
+├── product_apis/
+│   └── .skills/
+│       └── product-apis-development.md       # Product API 文件
+└── ...
+```
+
+這些 skills 記錄模組專屬的細節，例如資料模型、manager 方法、API 端點與使用範例。
 
 ## 相關專案
 
 - [weedbox/weedbox](https://github.com/weedbox/weedbox) - Weedbox 基礎模組框架
 - [weedbox/common-modules](https://github.com/weedbox/common-modules) - 常用可重用模組
+- [weedbox/user-modules](https://github.com/weedbox/user-modules) - 使用者管理、認證與 RBAC 模組
 
 ## 貢獻
 

@@ -134,7 +134,7 @@ spec:
    - Use for detecting deadlocks or unrecoverable states
 
 2. **Readiness (`/ready`)**:
-   - Returns true only after all modules are initialized
+   - Returns the daemon's composite ready state: true only when the daemon has started **and** every registered ready checker returns true (see [daemon.md](./daemon.md#composite-readiness))
    - Kubernetes removes pod from service load balancer if not ready
    - Use for graceful startup/shutdown
 

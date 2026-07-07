@@ -159,6 +159,7 @@ jwt_secret = "your-production-secret-key"
 access_token_expiry = "15m"
 refresh_token_expiry = "168h"
 issuer = "my-app"
+mode = "standalone"          # or "gateway" behind a trusted ingress
 ```
 
 ---
@@ -222,7 +223,7 @@ database.DatabaseConnector (from common-modules)
 
 ## Extending Permissions
 
-The builtin permissions cover `user` and `auth` resources. To add your own, use the Option pattern on `rbac.Module`:
+The builtin permissions cover `user`, `auth`, and `role` resources. To add your own, use the Option pattern on `rbac.Module`:
 
 ```go
 import (
@@ -237,7 +238,7 @@ rbac.Module("rbac",
             Key:         "product",
             Name:        "Product",
             Description: "Product management",
-            Actions:     permissions.CRUDActions(), // full CRUD
+            Actions:     permissions.CRUDActions(), // full CRUD: create, read, update, delete, list
         },
         {
             Key:         "report",

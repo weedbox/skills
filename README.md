@@ -31,12 +31,13 @@ Assists with Weedbox framework module development, including:
 - Event handling
 - Creating module-specific skills documentation
 
-**Two methods for module development:**
+**Three methods for module development:**
 
 | Method | Description | Use Case |
 |--------|-------------|----------|
 | Method 1: Manual FX | Manual control over FX dependency injection | Complex FX annotations or fine-grained control needed |
 | Method 2: Weedbox Generic | Uses `weedbox.Module[P]` generics (Recommended) | New modules, simple dependencies, less boilerplate |
+| Method 3: Interface Module | Uses `fxmodule.InterfaceModule` for swappable implementations | Connector-style modules with interchangeable backends |
 
 **Module Skills:**
 
@@ -46,6 +47,18 @@ Each module can have its own `.skills/` directory with development documentation
 pkg/mymodule/.skills/mymodule-development.md
 pkg/mymodule_apis/.skills/mymodule-apis-development.md
 ```
+
+### common-modules
+
+Reference for `github.com/weedbox/common-modules` — reusable infrastructure modules for weedbox applications:
+
+- Configuration management (Viper, TOML, environment variables)
+- Structured logging and health check endpoints
+- HTTP server (Gin) with CORS and static file/SPA support
+- Database connectors (PostgreSQL, SQLite, GORM)
+- NATS messaging and embedded JetStream server
+- Redis cache, SMTP mailer, job scheduler
+- Swagger/OpenAPI documentation
 
 ### user-modules
 
@@ -145,18 +158,27 @@ skills/
 ├── README.zh-TW.md
 ├── LICENSE
 ├── project-dev/
-│   └── SKILL.md                              # Project setup skill
+│   ├── SKILL.md                              # Project setup skill
+│   └── references/
+│       ├── licenses.md                       # License templates (Apache-2.0, MIT, Proprietary)
+│       └── docker.md                         # Dockerfile template and containerization guide
 ├── module-dev/
 │   ├── SKILL.md                              # Module development skill
 │   └── references/
 │       ├── METHOD1_MANUAL_FX.md              # Manual FX module details
 │       ├── METHOD2_WEEDBOX_GENERIC.md        # Weedbox generic module details
+│       ├── METHOD3_INTERFACE_MODULE.md       # Interface/connector module details
+│       ├── DATABASE_MODELS.md                # GORM models and index conventions
 │       └── MODULE_SKILLS.md                  # Module skills guide
 ├── crud-api-dev/
 │   ├── SKILL.md                              # CRUD API development skill
 │   └── references/
 │       ├── LOGIC_LAYER.md                    # Business logic layer details
 │       └── API_LAYER.md                      # HTTP API layer details
+├── common-modules/
+│   ├── SKILL.md                              # Common modules reference skill
+│   └── modules/                              # Per-module docs (configs, logger, http_server,
+│                                             #   database, nats, redis, mailer, scheduler, ...)
 └── user-modules/
     ├── SKILL.md                              # User modules reference skill
     └── modules/

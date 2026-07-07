@@ -2,6 +2,14 @@
 
 This document explains how to create skills files for weedbox modules, enabling Claude Code to better understand and assist with specific module development.
 
+## Contents
+
+- [Overview](#overview) / [Directory Structure](#directory-structure) / [Naming Conventions](#naming-conventions)
+- [Business Logic Module Skills Structure](#business-logic-module-skills-structure)
+- [API Module Skills Structure](#api-module-skills-structure)
+- [Special Module Skills Content](#special-module-skills-content)
+- [Best Practices](#best-practices) / [When to Create Skills](#when-to-create-skills) / [Verification Checklist](#verification-checklist)
+
 ## Overview
 
 Module Skills are documentation files placed in the `.skills/` subdirectory within each module directory. They describe:

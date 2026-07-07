@@ -8,6 +8,22 @@ both modes; only `scheduler.mode` in config changes.
 Built on top of `github.com/Weedbox/scheduler` (imported as `libsched`) and
 wired into Uber Fx.
 
+> **Note**: the capital-W `Weedbox` in this import path is intentional — the
+> library's go.mod declares `module github.com/Weedbox/scheduler`.
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Modes Overview](#modes-overview)
+- [Usage in Fx](#usage-in-fx)
+- [Configuration](#configuration)
+- [API Reference](#api-reference)
+- [Schedule Types](#schedule-types)
+- [Static vs Dynamic Jobs](#static-vs-dynamic-jobs)
+- [Handler Dispatching Pattern](#handler-dispatching-pattern)
+- [Error Handling](#error-handling)
+- [Deployment Notes](#deployment-notes)
+
 ## Installation
 
 ```bash

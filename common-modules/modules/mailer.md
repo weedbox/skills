@@ -43,12 +43,14 @@ tls = true
 
 ### Environment Variables
 
+Environment variables require the app prefix passed to `configs.NewConfig()` — `MYAPP` shown here.
+
 ```bash
-export MAILER_HOST=smtp.gmail.com
-export MAILER_PORT=587
-export MAILER_USERNAME=noreply@example.com
-export MAILER_PASSWORD=app-password
-export MAILER_TLS=true
+export MYAPP_MAILER_HOST=smtp.gmail.com
+export MYAPP_MAILER_PORT=587
+export MYAPP_MAILER_USERNAME=noreply@example.com
+export MYAPP_MAILER_PASSWORD=app-password
+export MYAPP_MAILER_TLS=true
 ```
 
 ### Common SMTP Settings

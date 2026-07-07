@@ -2,6 +2,20 @@
 
 NATS messaging client with JetStream, a work queue consumer (single-message and batch APIs), batch publishing (cross-stream async fan-out and single-stream atomic), convergent `Ensure*` helpers for multi-instance-safe stream / KV / consumer provisioning, and a distributed lock / `Once` helper.
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Usage in Fx](#usage-in-fx)
+- [Configuration](#configuration)
+- [Core Messaging](#core-messaging)
+- [JetStream](#jetstream)
+- [Multi-Instance-Safe Resource Provisioning](#multi-instance-safe-resource-provisioning)
+- [Batch Publishing](#batch-publishing)
+- [Work Queue Consumer](#work-queue-consumer)
+- [Batch Processing](#batch-processing)
+- [Distributed Lock & Once](#distributed-lock--once)
+- [Subject Patterns](#subject-patterns)
+
 ## Installation
 
 ```bash
@@ -64,15 +78,17 @@ defaultTTL = "30s"
 
 ### Environment Variables
 
+Environment variables require the app prefix passed to `configs.NewConfig()` — `MYAPP` shown here.
+
 ```bash
-export NATS_HOST=nats://localhost:4222
-export NATS_PINGINTERVAL=10
-export NATS_MAXPINGSOUTSTANDING=3
-export NATS_MAXRECONNECTS=-1
-export NATS_AUTH_CREDS=/path/to/user.creds
-export NATS_LOCK_BUCKET=nats_locks
-export NATS_LOCK_REPLICAS=3
-export NATS_LOCK_DEFAULTTTL=30s
+export MYAPP_NATS_HOST=nats://localhost:4222
+export MYAPP_NATS_PINGINTERVAL=10
+export MYAPP_NATS_MAXPINGSOUTSTANDING=3
+export MYAPP_NATS_MAXRECONNECTS=-1
+export MYAPP_NATS_AUTH_CREDS=/path/to/user.creds
+export MYAPP_NATS_LOCK_BUCKET=nats_locks
+export MYAPP_NATS_LOCK_REPLICAS=3
+export MYAPP_NATS_LOCK_DEFAULTTTL=30s
 ```
 
 ## Core Messaging
