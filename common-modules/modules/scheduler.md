@@ -45,11 +45,12 @@ go get github.com/weedbox/common-modules/scheduler
 > ✅ **`nats` mode supports multi-instance deployments.** Replicas share
 > the same durable consumer; each scheduled message is delivered to
 > exactly one replica via JetStream work-queue semantics. First-deploy
-> provisioning of the stream, KV buckets, and consumer is serialised
-> through `nats_connector.Once`, so concurrent boots are safe. Recurring
-> chains survive replica crashes, leader re-elections, and rolling
-> restarts; a background reconciler republishes any job whose next-run
-> has slipped past its grace window.
+> provisioning of the stream, KV buckets, and consumer converges through
+> retried `CreateOrUpdate*` calls (the NATS meta-leader serialises them
+> by asset name), so concurrent boots are safe without any external lock.
+> Recurring chains survive replica crashes, leader re-elections, and
+> rolling restarts; a background reconciler republishes any job whose
+> next-run has slipped past its grace window.
 
 ## Usage in Fx
 
@@ -141,23 +142,30 @@ default. Durations accept Viper-friendly forms (`"30s"`, `"5m"`).
 | `reconcilerInterval`                   | `30s`            | Background republish reconciler tick                                    |
 | `reconcilerGracePeriod`                | `30s`            | Lag tolerated before a recurring job is treated as stuck and republished |
 | `addJobRetryBudget`                    | `5s`             | `AddJob` / `UpdateJobSchedule` retry budget across raft hiccups          |
-| `startupStreamReadyTimeout`            | `30s`            | Wait for the stream's raft leader at start-up                           |
 | `jetStreamReadyTimeout`                | `30s`            | Wait for the JetStream metaleader                                       |
 | `startPhaseTimeout`                    | `30s`            | Per-phase cap inside `Start()`                                          |
 | `loadJobsConcurrency`                  | `32`             | Worker pool size for parallel KV reads during start-up                  |
 | `loadJobsAsyncPublishTimeout`          | `30s`            | Cap on draining the start-up async-publish queue                        |
-| `onceKey`                              | `scheduler.init` | Key used on the shared `nats_connector` lock bucket for first-deploy provisioning |
 | `publishRetry.attempts`                | (lib default)    | Retry attempts for scheduled-message publishes                          |
 | `publishRetry.initialBackoff`          | (lib default)    | Initial backoff between publish retries                                 |
+
+> ⚠️ `startupStreamReadyTimeout` and `onceKey` were removed when upstream
+> replaced the distributed-`Once` provisioning with convergent
+> `CreateOrUpdate*` helpers (`Weedbox/scheduler` v0.4.0). If they appear
+> in an older config file they are silently ignored.
+
+> ℹ️ Upstream `Weedbox/scheduler` v0.5.0 adds three more options —
+> `WithMaxConcurrentExecutions(n)` (per-replica execution cap, default
+> 32), `WithReconcilerRunningTTL(d)` (how long a running job row is left
+> alone before the reconciler treats it as abandoned, default 5m), and
+> `WithExecRecordTTL(d)` (KV TTL bounding execution-history growth).
+> This module does **not** forward them as config keys yet; they matter
+> mostly when handlers run longer than 5 minutes (see Deployment Notes).
 
 > 💡 `loadJobsConcurrency` and `loadJobsAsyncPublishTimeout` (added in
 > `Weedbox/scheduler` v0.3.0) tune the parallel KV reload at start-up.
 > Increase concurrency on deployments with many persisted jobs to cut
 > `Start()` time from `O(N × RTT)` to roughly `O((N / concurrency) × RTT)`.
-
-> ℹ️ The lock bucket used for `onceKey` is owned by `nats_connector` and
-> configured via its own `lock.bucket` key — **not** through the
-> scheduler module.
 
 ### TOML example
 
@@ -178,12 +186,10 @@ execBucket    = "SCHEDULER_EXECUTIONS"
 # reconcilerInterval           = "30s"
 # reconcilerGracePeriod        = "30s"
 # addJobRetryBudget            = "5s"
-# startupStreamReadyTimeout    = "30s"
 # jetStreamReadyTimeout        = "30s"
 # startPhaseTimeout            = "30s"
 # loadJobsConcurrency          = 32
 # loadJobsAsyncPublishTimeout  = "30s"
-# onceKey                      = "scheduler.init"
 
 # [scheduler.nats.publishRetry]
 # attempts        = 3
@@ -325,6 +331,24 @@ Schedule constructors live in the underlying library. Import it as
 | `libsched.NewCronSchedule(expr)`                   | Fire on a cron expression (e.g. `"0 3 * * *"`)          |
 | `libsched.NewOnceSchedule(t)`                      | Fire once at `time.Time` `t`                            |
 | `libsched.NewStartAtIntervalSchedule(start, d)`    | Begin at `start`, then every `d` thereafter             |
+| `libsched.NewDailySchedule(hour, min, sec)`        | Fire every day at a fixed wall-clock time (v0.5.0+)     |
+
+> ⏰ Cron and daily schedules evaluate in the **scheduler host's local time
+> zone**. Nodes running in different zones will disagree on when
+> `"0 3 * * *"` or `NewDailySchedule(3, 0, 0)` fires — pin a common TZ
+> across the cluster.
+
+Since `Weedbox/scheduler` v0.5.0 the fluent `ScheduleBuilder` is also
+implemented (your app can require v0.5.0 in its own `go.mod` even while
+`common-modules` pins an older version — Go picks the higher one):
+
+```go
+b := libsched.NewScheduleBuilder()
+sch1, _ := b.Every(5 * time.Minute)  // IntervalSchedule
+sch2, _ := b.Cron("0 3 * * *")       // CronSchedule
+sch3, _ := b.At(10, 30, 0)           // DailySchedule, 10:30:00 daily
+sch4, _ := b.Once(time.Now().Add(time.Hour))
+```
 
 ```go
 import (
@@ -459,9 +483,9 @@ s.SetHandler(func(ctx context.Context, e libsched.JobEvent) error {
 - **`nats` mode supports multi-instance deployments.** Multiple scheduler
   replicas can run against the same stream concurrently:
   - First-deploy provisioning of the stream, KV buckets, and durable
-    consumer is serialised through `nats_connector.Once`, so concurrent
-    boots are safe and share the same lock substrate as every other
-    common-module that uses `Once`.
+    consumer converges through retried `CreateOrUpdate*` calls; the NATS
+    meta-leader serialises them by asset name, so concurrent boots need
+    no external lock (v0.4.0+).
   - The durable consumer's work-queue semantics ensure each scheduled
     message is delivered to exactly one replica.
   - On start-up the library reloads jobs from the KV bucket and filters
@@ -471,6 +495,27 @@ s.SetHandler(func(ctx context.Context, e libsched.JobEvent) error {
   - A background reconciler republishes any recurring job whose next-run
     has slipped past `nats.reconcilerGracePeriod`, recovering from
     publish failures or unclean shutdowns.
+  - Since v0.5.0, all job-row KV writes are CAS-based: a peer's
+    `UpdateJobSchedule` or `RemoveJob` landing while another peer's
+    handler is mid-execution is merged, not overwritten (no lost
+    updates, no resurrected jobs). Executions dispatch concurrently per
+    replica (default cap 32) so one slow handler no longer head-of-line
+    blocks other due jobs.
+- **Delivery is at-least-once — write idempotent handlers.** Node
+  failover, AckWait expiry after a crash, and reconciler repairs can all
+  re-fire a tick in rare windows. Handlers should tolerate a duplicate
+  invocation for the same job.
+- **Handlers that may run longer than 5 minutes** (v0.5.0+): the
+  reconciler treats a job marked running for more than its running TTL
+  (default 5m, matching the consumer AckWait) as abandoned and re-fires
+  it. For long tasks raise `libsched.WithReconcilerRunningTTL` and the
+  consumer AckWait above the longest expected handler duration — these
+  are library options, not yet exposed as config keys by this module.
+- **Upstream v0.5.0 behaviour change for `gorm` mode**: `GormStorage.Close`
+  no longer closes the injected `*sql.DB` pool by default (it is shared
+  with the rest of the application via the database connector). Code that
+  relied on the old behaviour must opt in with
+  `libsched.WithGormOwnsDB()`.
 
 ## Related
 

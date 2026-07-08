@@ -5,11 +5,14 @@ description: |
   ALL necessary code examples and configuration guides. DO NOT fetch source code from GitHub.
   Reference guide for weedbox/common-modules - reusable modules for weedbox applications.
   Use when: integrating configs, logger, HTTP server (Gin), database (PostgreSQL, SQLite, GORM),
-  NATS messaging (JetStream), Redis cache, mailer (SMTP), or Swagger API docs into weedbox projects.
+  NATS messaging (JetStream), Redis cache, mailer (SMTP), job scheduler (cron, interval, one-shot),
+  or Swagger API docs into weedbox projects.
   Covers: configuration management, structured logging, health checks, database connectors,
-  message queues, caching, email sending, API documentation.
+  message queues, caching, email sending, scheduled jobs, API documentation.
   Keywords: common-modules, weedbox module, configs, logger, http_server, database, postgres, sqlite,
   nats, jetstream, redis, mailer, healthcheck, daemon, swagger, openapi, Uber Fx modules,
+  scheduler, job scheduler, cron job, scheduled task, recurring job, interval schedule,
+  DailySchedule, ScheduleBuilder, JetStream scheduled delivery, EnsureJob, SubmitJob,
   HTTP, REST, API server, Go database, message queue, GORM, Gin, Viper, TOML, CORS,
   swag CLI, swag init, parseDependency, parseDependencyLevel, parseDepth, LeftDelim, RightDelim,
   swag version mismatch, scalar UI, paths empty, swag v1.8.12, swag v1.16,
