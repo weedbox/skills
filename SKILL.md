@@ -11,7 +11,8 @@ description: |
   setting up Go microservices with weedbox, or any weedbox-based development.
   Keywords: weedbox, weedbox app, weedbox module, weedbox package, uber fx, go application,
   microservice, user management, authentication, RBAC, login, permission, access control,
-  Go module, JWT, refresh token, role, middleware, REST API, HTTP server, database, GORM.
+  Go module, JWT, refresh token, role, middleware, REST API, HTTP server, database, GORM,
+  workqueue, task queue, job queue, background job, delayed task, retry, dead letter queue.
 ---
 
 # Weedbox Skills
@@ -35,8 +36,9 @@ When user requests to "add XXX feature/module", check existing libraries first:
 
 1. **First check** [common-modules](./common-modules/SKILL.md) for infrastructure modules
 2. **Then check** [user-modules](./user-modules/SKILL.md) for user/auth/RBAC modules
-3. **If exists** → Use it directly, do NOT implement from scratch
-4. **If not exists** → Then use module-dev to create new module
+3. **Then check** [workqueue-modules](./workqueue-modules/SKILL.md) for task/job queue modules
+4. **If exists** → Use it directly, do NOT implement from scratch
+5. **If not exists** → Then use module-dev to create new module
 
 **Available modules in common-modules** (full index in [common-modules/SKILL.md](./common-modules/SKILL.md)):
 - `configs` - Configuration management (Viper, TOML, env vars)
@@ -63,6 +65,14 @@ When user requests to "add XXX feature/module", check existing libraries first:
 - `role_apis` - REST API handlers for role/resource management
 - `http_token_validator` - Optional global JWT validation middleware
 
+**Available modules in workqueue-modules** (full index in [workqueue-modules/SKILL.md](./workqueue-modules/SKILL.md)):
+- `workqueue` - Shared `WorkQueue` interface (enqueue/consume, delay, retry, dead-letter)
+- `memory_workqueue` - In-process backend for development and tests
+- `gorm_workqueue` - Database backend on any GORM dialect (PostgreSQL, SQLite, ...)
+- `postgres_workqueue` - PostgreSQL-native backend (SKIP LOCKED + LISTEN/NOTIFY)
+- `nats_workqueue` - NATS JetStream backend (push-based, replicated)
+- `workqueuetest` - Conformance test suite for backends
+
 ---
 
 ## Available Skills
@@ -74,6 +84,7 @@ When user requests to "add XXX feature/module", check existing libraries first:
 | [crud-api-dev](./crud-api-dev/SKILL.md) | Build complete CRUD APIs with business logic and HTTP handlers |
 | [common-modules](./common-modules/SKILL.md) | Use built-in modules (HTTP, database, NATS, Redis, etc.) |
 | [user-modules](./user-modules/SKILL.md) | User management, JWT authentication, and RBAC modules |
+| [workqueue-modules](./workqueue-modules/SKILL.md) | Task queues: background jobs, delayed tasks, retries, dead-letter queues |
 
 ## When to Use
 
@@ -82,6 +93,7 @@ When user requests to "add XXX feature/module", check existing libraries first:
 - **crud-api-dev** - Building REST APIs with CRUD operations, request binding patterns, QueryHelper for pagination/search/filtering
 - **common-modules** - Integrating configs, logger, HTTP server, database (PostgreSQL/SQLite), NATS messaging, Redis cache, or mailer
 - **user-modules** - Adding user management, JWT authentication (login/refresh/logout), role-based access control (RBAC), or permission-protected REST APIs
+- **workqueue-modules** - Enqueueing and consuming background tasks, delaying/scheduling delivery, retrying with backoff, handling dead-lettered tasks, or choosing a queue backend (memory/GORM/PostgreSQL/NATS)
 
 ## Module Skills
 

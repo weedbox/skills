@@ -71,6 +71,16 @@ pkg/mymodule_apis/.skills/mymodule-apis-development.md
 - 可擴充的權限系統與合併 API
 - 選用的全域 JWT 驗證 middleware
 
+### workqueue-modules
+
+`github.com/weedbox/workqueue-modules` 的參考文件 — 以單一 `WorkQueue` interface 為核心的任務佇列模組：
+
+- 背景任務的入列與消費，支援多個 consumer 競爭
+- 延遲/排程投遞、指數退避重試
+- 死信佇列（列出/重新入列/刪除）
+- 可互換的後端：memory、GORM（任意 dialect）、PostgreSQL 原生（SKIP LOCKED + LISTEN/NOTIFY）、NATS JetStream
+- 供撰寫新後端使用的一致性測試套件
+
 ### crud-api-dev
 
 協助建立完整的 CRUD API，包含：
@@ -179,17 +189,26 @@ skills/
 │   ├── SKILL.md                              # Common modules 參考技能
 │   └── modules/                              # 各模組文件 (configs, logger, http_server,
 │                                             #   database, nats, redis, mailer, scheduler, ...)
-└── user-modules/
-    ├── SKILL.md                              # User modules 參考技能
+├── user-modules/
+│   ├── SKILL.md                              # User modules 參考技能
+│   └── modules/
+│       ├── permissions.md                    # 權限定義與擴充 API
+│       ├── rbac.md                           # 以 privy 為基礎的 RBAC manager
+│       ├── user.md                           # 使用者 CRUD 與密碼管理
+│       ├── auth.md                           # JWT 認證與 middleware
+│       ├── user_apis.md                      # 使用者 REST API 端點
+│       ├── auth_apis.md                      # 認證 REST API 端點
+│       ├── role_apis.md                      # 角色/資源 REST API 端點
+│       └── http_token_validator.md           # 全域 JWT 驗證 middleware
+└── workqueue-modules/
+    ├── SKILL.md                              # Workqueue modules 參考技能
     └── modules/
-        ├── permissions.md                    # 權限定義與擴充 API
-        ├── rbac.md                           # 以 privy 為基礎的 RBAC manager
-        ├── user.md                           # 使用者 CRUD 與密碼管理
-        ├── auth.md                           # JWT 認證與 middleware
-        ├── user_apis.md                      # 使用者 REST API 端點
-        ├── auth_apis.md                      # 認證 REST API 端點
-        ├── role_apis.md                      # 角色/資源 REST API 端點
-        └── http_token_validator.md           # 全域 JWT 驗證 middleware
+        ├── workqueue.md                      # 共用 WorkQueue interface 與選項
+        ├── memory_workqueue.md               # In-process 後端
+        ├── gorm_workqueue.md                 # 資料庫後端（任意 GORM dialect）
+        ├── postgres_workqueue.md             # PostgreSQL 原生後端
+        ├── nats_workqueue.md                 # NATS JetStream 後端
+        └── workqueuetest.md                  # 一致性測試套件
 ```
 
 ## 模組專屬 Skills
@@ -214,6 +233,7 @@ pkg/
 - [weedbox/weedbox](https://github.com/weedbox/weedbox) - Weedbox 基礎模組框架
 - [weedbox/common-modules](https://github.com/weedbox/common-modules) - 常用可重用模組
 - [weedbox/user-modules](https://github.com/weedbox/user-modules) - 使用者管理、認證與 RBAC 模組
+- [weedbox/workqueue-modules](https://github.com/weedbox/workqueue-modules) - 任務佇列模組，支援可互換後端
 
 ## 貢獻
 

@@ -71,6 +71,16 @@ Reference for `github.com/weedbox/user-modules` — reusable modules for user ma
 - Extensible permission system with merge API
 - Optional global JWT validation middleware
 
+### workqueue-modules
+
+Reference for `github.com/weedbox/workqueue-modules` — task queue modules behind a single `WorkQueue` interface:
+
+- Enqueue/consume background tasks with competing consumers
+- Delayed and scheduled delivery, exponential retry backoff
+- Dead-letter queue with list/requeue/delete
+- Interchangeable backends: memory, GORM (any dialect), PostgreSQL-native (SKIP LOCKED + LISTEN/NOTIFY), NATS JetStream
+- Conformance test suite for writing new backends
+
 ### crud-api-dev
 
 Assists with building complete CRUD APIs, including:
@@ -179,17 +189,26 @@ skills/
 │   ├── SKILL.md                              # Common modules reference skill
 │   └── modules/                              # Per-module docs (configs, logger, http_server,
 │                                             #   database, nats, redis, mailer, scheduler, ...)
-└── user-modules/
-    ├── SKILL.md                              # User modules reference skill
+├── user-modules/
+│   ├── SKILL.md                              # User modules reference skill
+│   └── modules/
+│       ├── permissions.md                    # Permission definitions and extension API
+│       ├── rbac.md                           # RBAC manager with privy
+│       ├── user.md                           # User CRUD and password management
+│       ├── auth.md                           # JWT auth and middleware
+│       ├── user_apis.md                      # User REST API endpoints
+│       ├── auth_apis.md                      # Auth REST API endpoints
+│       ├── role_apis.md                      # Role/resource REST API endpoints
+│       └── http_token_validator.md           # Global JWT validation middleware
+└── workqueue-modules/
+    ├── SKILL.md                              # Workqueue modules reference skill
     └── modules/
-        ├── permissions.md                    # Permission definitions and extension API
-        ├── rbac.md                           # RBAC manager with privy
-        ├── user.md                           # User CRUD and password management
-        ├── auth.md                           # JWT auth and middleware
-        ├── user_apis.md                      # User REST API endpoints
-        ├── auth_apis.md                      # Auth REST API endpoints
-        ├── role_apis.md                      # Role/resource REST API endpoints
-        └── http_token_validator.md           # Global JWT validation middleware
+        ├── workqueue.md                      # Shared WorkQueue interface and options
+        ├── memory_workqueue.md               # In-process backend
+        ├── gorm_workqueue.md                 # Database backend (any GORM dialect)
+        ├── postgres_workqueue.md             # PostgreSQL-native backend
+        ├── nats_workqueue.md                 # NATS JetStream backend
+        └── workqueuetest.md                  # Conformance test suite
 ```
 
 ## Module-Specific Skills
@@ -214,6 +233,7 @@ These skills document module-specific details like data models, manager methods,
 - [weedbox/weedbox](https://github.com/weedbox/weedbox) - Weedbox base module framework
 - [weedbox/common-modules](https://github.com/weedbox/common-modules) - Common reusable modules
 - [weedbox/user-modules](https://github.com/weedbox/user-modules) - User management, auth, and RBAC modules
+- [weedbox/workqueue-modules](https://github.com/weedbox/workqueue-modules) - Task queue modules with interchangeable backends
 
 ## Contributing
 
