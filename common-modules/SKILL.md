@@ -60,7 +60,7 @@ This skill provides detailed usage instructions for all modules in `github.com/w
 
 | Module | Description | Documentation |
 |--------|-------------|---------------|
-| `scheduler` | Job scheduler with GORM (single-node) or NATS JetStream backend; upstream library also offers a multi-instance PostgreSQL scheduler | [scheduler.md](./modules/scheduler.md) |
+| `scheduler` | Job scheduler with GORM (single-node), PostgreSQL (multi-instance, claim-based), or NATS JetStream backend | [scheduler.md](./modules/scheduler.md) |
 
 ### Cache
 

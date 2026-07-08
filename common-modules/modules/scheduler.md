@@ -1,9 +1,11 @@
 # scheduler
 
-Job scheduler module with two interchangeable backends — `gorm` (single-node,
-in-memory timer backed by `*gorm.DB`) and `nats` (NATS 2.12+ JetStream
-Scheduled Message Delivery, KV-persisted). The public API is identical in
-both modes; only `scheduler.mode` in config changes.
+Job scheduler module with three interchangeable backends — `gorm`
+(single-node, in-memory timer backed by `*gorm.DB`), `postgres`
+(multi-instance, claim-based coordination through a shared PostgreSQL
+database), and `nats` (NATS 2.12+ JetStream Scheduled Message Delivery,
+KV-persisted). The public API is identical in all modes; only
+`scheduler.mode` in config changes.
 
 Built on top of `github.com/Weedbox/scheduler` (imported as `libsched`) and
 wired into Uber Fx.
@@ -32,16 +34,28 @@ go get github.com/weedbox/common-modules/scheduler
 
 ## Modes Overview
 
-| Mode   | Backend                                         | Required dependency             | Deployment                                |
-|--------|-------------------------------------------------|---------------------------------|-------------------------------------------|
-| `gorm` | `*gorm.DB` + in-memory timer                    | `database.DatabaseConnector`    | **Single node only**                      |
-| `nats` | NATS 2.12+ JetStream Scheduled Message Delivery | `*nats_connector.NATSConnector` | **Multi-instance** with KV-backed persistence |
+| Mode       | Backend                                         | Required dependency             | Deployment                                |
+|------------|-------------------------------------------------|---------------------------------|-------------------------------------------|
+| `gorm`     | `*gorm.DB` + in-memory timer                    | `database.DatabaseConnector`    | **Single node only**                      |
+| `postgres` | PostgreSQL 9.5+ claim-based scheduler (`FOR UPDATE SKIP LOCKED`) | `database.DatabaseConnector` (must be `postgres_connector`) | **Multi-instance** coordinated through the shared database |
+| `nats`     | NATS 2.12+ JetStream Scheduled Message Delivery | `*nats_connector.NATSConnector` | **Multi-instance** with KV-backed persistence |
 
 > ⚠️ **`gorm` mode is single-node.** The in-memory timer lives inside each
 > process. Running multiple replicas against the same database will cause
 > **every job to fire on every replica**. Do not deploy `gorm` mode with
-> more than one instance. If you need multi-instance scheduling on
-> PostgreSQL without NATS, see the upstream v0.6.0 note below.
+> more than one instance. Use `postgres` or `nats` mode for multi-node
+> deployments.
+
+> ✅ **`postgres` mode supports multi-instance deployments without NATS**
+> (requires `Weedbox/scheduler` v0.6.0+, `common-modules` v0.0.54+). Due
+> jobs are claimed with a single `FOR UPDATE SKIP LOCKED` round-trip —
+> exactly one winner per tick, no leader election. Claims are leased and
+> heartbeated; a crashed replica's jobs are taken over once the lease
+> expires. The database clock is the single time authority. It shares
+> `gorm` mode's tables (two claim columns are added on start), so a
+> single-node `gorm` deployment on PostgreSQL upgrades in place — and a
+> typical setup runs `gorm` mode on SQLite in development and `postgres`
+> mode in production, switching only config.
 
 > ✅ **`nats` mode supports multi-instance deployments.** Replicas share
 > the same durable consumer; each scheduled message is delivered to
@@ -52,14 +66,6 @@ go get github.com/weedbox/common-modules/scheduler
 > Recurring chains survive replica crashes, leader re-elections, and
 > rolling restarts; a background reconciler republishes any job whose
 > next-run has slipped past its grace window.
-
-> ℹ️ **Upstream `Weedbox/scheduler` v0.6.0 adds a third backend** —
-> `libsched.NewPostgresScheduler`, a claim-based multi-instance scheduler
-> coordinated through a shared PostgreSQL database (9.5+, `FOR UPDATE
-> SKIP LOCKED` claims). This module does **not** expose it as a `mode`
-> yet; construct it from the library directly when you need
-> multi-instance scheduling backed by PostgreSQL instead of NATS
-> (details under Deployment Notes).
 
 ## Usage in Fx
 
@@ -77,6 +83,26 @@ import (
 func loadModules() ([]fx.Option, error) {
     return []fx.Option{
         sqlite_connector.Module("sqlite"),  // or postgres_connector
+        scheduler.Module("scheduler"),
+    }, nil
+}
+```
+
+### Postgres mode
+
+Requires a `database.DatabaseConnector` backed by `postgres_connector` in
+the same fx graph (the claim queries use PostgreSQL-specific SQL — a
+SQLite connector will fail at runtime).
+
+```go
+import (
+    "github.com/weedbox/common-modules/postgres_connector"
+    "github.com/weedbox/common-modules/scheduler"
+)
+
+func loadModules() ([]fx.Option, error) {
+    return []fx.Option{
+        postgres_connector.Module("database"),
         scheduler.Module("scheduler"),
     }, nil
 }
@@ -129,7 +155,7 @@ type Params struct {
 
 | Parameter                      | Default                | Purpose                                        |
 |--------------------------------|------------------------|------------------------------------------------|
-| `{scope}.mode`                 | `gorm`                 | Backend: `gorm` or `nats`                      |
+| `{scope}.mode`                 | `gorm`                 | Backend: `gorm`, `postgres`, or `nats`         |
 | `{scope}.nats.streamName`      | `SCHEDULER`            | JetStream stream name (NATS mode)              |
 | `{scope}.nats.subjectPrefix`   | `scheduler`            | Scheduled message subject prefix               |
 | `{scope}.nats.consumerName`    | `scheduler-worker`     | Durable consumer name                          |
@@ -138,6 +164,19 @@ type Params struct {
 
 `{scope}` is the string passed to `scheduler.Module("scheduler")` — by
 convention `scheduler`.
+
+### Postgres-mode tuning knobs (optional)
+
+All keys live under `{scope}.postgres.*`. Each one is **only forwarded when
+explicitly set**; omit a key to keep the underlying `Weedbox/scheduler`
+default. Durations accept Viper-friendly forms (`"1s"`, `"5m"`).
+
+| Parameter                 | Upstream default | Purpose                                                                  |
+|---------------------------|------------------|--------------------------------------------------------------------------|
+| `pollInterval`            | `1s`             | Idle poll interval; bounds cross-instance pickup latency for new/updated jobs |
+| `leaseDuration`           | `5m`             | Claim lease; a crashed replica's jobs become claimable after this. Also the double-execution window — keep handlers idempotent |
+| `maxConcurrentExecutions` | `32`             | Per-instance cap on in-flight handlers; surplus due jobs stay claimable by peers |
+| `execRecordTTL`           | `0` (keep forever) | Prune execution records older than this after each execution           |
 
 ### NATS-mode tuning knobs (optional)
 
@@ -180,7 +219,14 @@ default. Durations accept Viper-friendly forms (`"30s"`, `"5m"`).
 
 ```toml
 [scheduler]
-mode = "gorm"      # or "nats"
+mode = "gorm"      # or "postgres" / "nats"
+
+# Only relevant in postgres mode — all optional (omit to use upstream defaults)
+# [scheduler.postgres]
+# pollInterval            = "1s"
+# leaseDuration           = "5m"
+# maxConcurrentExecutions = 32
+# execRecordTTL           = "720h"
 
 # Only relevant in nats mode
 [scheduler.nats]
@@ -487,23 +533,23 @@ s.SetHandler(func(ctx context.Context, e libsched.JobEvent) error {
 - **`gorm` mode is for single-node deployments** (a worker, a single-process
   service, a CLI). Do not scale horizontally — timers fire independently
   in every process.
-- **Multi-instance on PostgreSQL without NATS** (upstream
-  `Weedbox/scheduler` v0.6.0): `libsched.NewPostgresScheduler(db, handler,
-  codec, opts...)` coordinates any number of replicas through the shared
-  database. Due jobs are claimed with a single `FOR UPDATE SKIP LOCKED`
-  round-trip — exactly one winner per tick, no leader election. Claims
-  are leased and heartbeated; a crashed replica's jobs are taken over
-  once the lease (default 5m, `WithPostgresLeaseDuration`) expires.
-  Write-backs are fenced by a claim sequence plus the row's `created_at`,
-  so a stale owner can never clobber a newer claim, a schedule update, or
-  a job re-created under the same ID. The database clock is the single
-  time authority — host clock skew cannot shift or duplicate ticks. It
-  shares `GormStorage`'s tables (two columns are added on `Start`), so an
+- **`postgres` mode supports multi-instance deployments on PostgreSQL
+  without NATS** (`common-modules` v0.0.54+, upstream `Weedbox/scheduler`
+  v0.6.0). Any number of replicas coordinate through the shared database.
+  Due jobs are claimed with a single `FOR UPDATE SKIP LOCKED` round-trip —
+  exactly one winner per tick, no leader election. Claims are leased and
+  heartbeated; a crashed replica's jobs are taken over once the lease
+  (default 5m, `postgres.leaseDuration`) expires. Write-backs are fenced
+  by a claim sequence plus the row's `created_at`, so a stale owner can
+  never clobber a newer claim, a schedule update, or a job re-created
+  under the same ID. The database clock is the single time authority —
+  host clock skew cannot shift or duplicate ticks. It shares
+  `GormStorage`'s tables (two columns are added on `Start`), so an
   existing `gorm`-mode deployment upgrades in place without a data
   migration. Delivery is at-least-once — the same idempotent-handler
   contract as `nats` mode. Cross-instance pickup latency is bounded by
-  `WithPostgresPollInterval` (default 1s). Not yet exposed as a `mode` by
-  this module; construct it directly and wire it into your own fx module.
+  `postgres.pollInterval` (default 1s). Requires `postgres_connector` as
+  the database backend — SQLite fails at runtime on the claim SQL.
 - **`nats` mode requires NATS Server 2.12 or later** with JetStream
   enabled. Startup fails with `ErrNATSServerTooOld` on older servers.
 - **`nats` mode supports multi-instance deployments.** Multiple scheduler
