@@ -40,7 +40,8 @@ go get github.com/weedbox/common-modules/scheduler
 > ⚠️ **`gorm` mode is single-node.** The in-memory timer lives inside each
 > process. Running multiple replicas against the same database will cause
 > **every job to fire on every replica**. Do not deploy `gorm` mode with
-> more than one instance.
+> more than one instance. If you need multi-instance scheduling on
+> PostgreSQL without NATS, see the upstream v0.6.0 note below.
 
 > ✅ **`nats` mode supports multi-instance deployments.** Replicas share
 > the same durable consumer; each scheduled message is delivered to
@@ -51,6 +52,14 @@ go get github.com/weedbox/common-modules/scheduler
 > Recurring chains survive replica crashes, leader re-elections, and
 > rolling restarts; a background reconciler republishes any job whose
 > next-run has slipped past its grace window.
+
+> ℹ️ **Upstream `Weedbox/scheduler` v0.6.0 adds a third backend** —
+> `libsched.NewPostgresScheduler`, a claim-based multi-instance scheduler
+> coordinated through a shared PostgreSQL database (9.5+, `FOR UPDATE
+> SKIP LOCKED` claims). This module does **not** expose it as a `mode`
+> yet; construct it from the library directly when you need
+> multi-instance scheduling backed by PostgreSQL instead of NATS
+> (details under Deployment Notes).
 
 ## Usage in Fx
 
@@ -478,6 +487,23 @@ s.SetHandler(func(ctx context.Context, e libsched.JobEvent) error {
 - **`gorm` mode is for single-node deployments** (a worker, a single-process
   service, a CLI). Do not scale horizontally — timers fire independently
   in every process.
+- **Multi-instance on PostgreSQL without NATS** (upstream
+  `Weedbox/scheduler` v0.6.0): `libsched.NewPostgresScheduler(db, handler,
+  codec, opts...)` coordinates any number of replicas through the shared
+  database. Due jobs are claimed with a single `FOR UPDATE SKIP LOCKED`
+  round-trip — exactly one winner per tick, no leader election. Claims
+  are leased and heartbeated; a crashed replica's jobs are taken over
+  once the lease (default 5m, `WithPostgresLeaseDuration`) expires.
+  Write-backs are fenced by a claim sequence plus the row's `created_at`,
+  so a stale owner can never clobber a newer claim, a schedule update, or
+  a job re-created under the same ID. The database clock is the single
+  time authority — host clock skew cannot shift or duplicate ticks. It
+  shares `GormStorage`'s tables (two columns are added on `Start`), so an
+  existing `gorm`-mode deployment upgrades in place without a data
+  migration. Delivery is at-least-once — the same idempotent-handler
+  contract as `nats` mode. Cross-instance pickup latency is bounded by
+  `WithPostgresPollInterval` (default 1s). Not yet exposed as a `mode` by
+  this module; construct it directly and wire it into your own fx module.
 - **`nats` mode requires NATS Server 2.12 or later** with JetStream
   enabled. Startup fails with `ErrNATSServerTooOld` on older servers.
 - **`nats` mode supports multi-instance deployments.** Multiple scheduler
