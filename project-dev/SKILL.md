@@ -6,15 +6,18 @@ description: |
   Weedbox application/project creation and structure guide.
   Use when: creating weedbox application, starting new weedbox project, setting up project structure,
   configuring main.go entry point, organizing modules.go, using wbox CLI tool,
-  configuring three-phase module loading (preload/load/after), choosing project license.
+  configuring three-phase module loading (preload/load/after), choosing project license,
+  deploying multiple instances, switching backends between development and production.
   Covers: project structure, main.go setup, modules.go organization, Cobra CLI integration,
   config.toml format, environment variables, wbox init command, license selection (Apache-2.0, MIT, Proprietary),
-  docker/Dockerfile multi-stage build template and .dockerignore conventions.
+  docker/Dockerfile multi-stage build template and .dockerignore conventions,
+  multi-instance deployment, config-driven backend switching (scheduler mode, workqueue backend, embedded vs external NATS).
   Keywords: weedbox application, weedbox project, wbox, main.go, modules.go, project structure,
   cobra cli, config.toml, preloadModules, loadModules, afterModules, fx.New, app.Run,
   license, apache, mit, proprietary, commercial, open source,
   new project, init project, project setup, Go project, weedbox setup,
-  docker, Dockerfile, container, alpine, multi-stage build, dockerignore, CGO, /datastore.
+  docker, Dockerfile, container, alpine, multi-stage build, dockerignore, CGO, /datastore,
+  multi-instance, replicas, horizontal scaling, production config, environment override, scheduler mode.
 ---
 
 # Weedbox Project Development
@@ -32,6 +35,7 @@ This skill helps create and structure projects using the weedbox framework.
 - [Configuration](#configuration)
 - [Creating a New Project](#creating-a-new-project)
 - [Docker / Containerization](#docker--containerization) — full template in [references/docker.md](./references/docker.md)
+- [Multi-Instance Deployment](#multi-instance-deployment) — one binary, config-driven dev/production backends
 - [License Selection](#license-selection) — full texts in [references/licenses.md](./references/licenses.md)
 - [Common Modules from weedbox/common-modules](#common-modules-from-weedboxcommon-modules)
 - [User Modules from weedbox/user-modules](#user-modules-from-weedboxuser-modules)
@@ -264,6 +268,82 @@ Full template, adaptation table, `.dockerignore`, and build/run commands: [refer
 
 ---
 
+## Multi-Instance Deployment
+
+Production deployments run **multiple replicas** of the same binary. Design for this from day one: one binary, one module list, and configuration (not code) selects single-instance dev backends vs multi-instance production backends. Full decision table: [root skill § Design for Multi-Instance Deployment by Default](../SKILL.md#design-for-multi-instance-deployment-by-default).
+
+### Recommended pattern: PostgreSQL everywhere, config-only switching
+
+The lowest-friction setup uses PostgreSQL in every environment (run it via Docker locally). Dev → production is then **pure configuration** — `modules.go` never changes:
+
+```go
+// modules.go — identical in dev and production
+func loadModules() ([]fx.Option, error) {
+    return []fx.Option{
+        postgres_connector.Module("database"),
+        scheduler.Module("scheduler"),          // mode from config: gorm (dev) / postgres (prod)
+        postgres_workqueue.Module("workqueue"), // multi-process safe in every environment
+        // ... business modules ...
+    }, nil
+}
+```
+
+```toml
+# config.toml — development defaults (single local process)
+[scheduler]
+mode = "gorm"
+```
+
+```bash
+# Production — environment variables override config.toml
+export MYAPP_SCHEDULER_MODE=postgres   # claim-based multi-instance scheduling
+export MYAPP_DATABASE_HOST=db.internal
+export MYAPP_DATABASE_PASSWORD=secret
+```
+
+`scheduler` `postgres` mode shares `gorm` mode's tables, so the switch requires no data migration.
+
+### SQLite-based development
+
+If local development must be dependency-free, use SQLite in dev — the swap stays confined to `modules.go` because application code injects interfaces (`database.DatabaseConnector`, `workqueue.WorkQueue`) only:
+
+| | Development | Production |
+|---|---|---|
+| Database | `sqlite_connector.Module("database")` | `postgres_connector.Module("database")` |
+| Workqueue | `gorm_workqueue.Module("workqueue")` | `postgres_workqueue.Module("workqueue")` (same table layout — no data migration) |
+| Scheduler | `mode = "gorm"` | `mode = "postgres"` or `"nats"` |
+
+### NATS-based stacks
+
+Run the embedded JetStream server in development and point at an external NATS cluster in production — config only:
+
+```toml
+# config.toml — development
+[nats_server]
+enabled = true          # embedded NATS JetStream server (preload phase)
+
+[nats]
+host = "nats://localhost:4222"
+```
+
+```bash
+# Production
+export MYAPP_NATS_SERVER_ENABLED=false
+export MYAPP_NATS_HOST=nats://nats.internal:4222
+export MYAPP_SCHEDULER_MODE=nats
+```
+
+### Multi-instance production rules
+
+- Replicas > 1 → `scheduler` mode MUST be `postgres` or `nats`, never `gorm` (every replica would fire every job)
+- Replicas > 1 → workqueue backend MUST be `gorm_workqueue`, `postgres_workqueue`, or `nats_workqueue`, never `memory_workqueue`
+- The embedded `nats_jetstream_server` is for development and single-node use — production uses an external NATS cluster
+- SQLite is a local file, single-node by nature — use `postgres_connector` when scaling out
+- Cross-instance shared state (cache, locks, counters) goes in the database, `redis_connector`, or NATS — never process memory
+- Custom modules must follow [module-dev § Multi-Instance Safety](../module-dev/SKILL.md#multi-instance-safety)
+
+---
+
 ## License Selection
 
 When creating a new project, choose an appropriate license. The default is **Apache License 2.0**.
@@ -331,6 +411,7 @@ go build -o myapp .
 - [ ] Create `LICENSE` file with chosen license
 - [ ] Create configuration file (`config.toml`, not `configs.toml`)
 - [ ] Implement application modules in `pkg/`
+- [ ] **Design for multi-instance**: pick production backends per the [multi-instance table](../SKILL.md#design-for-multi-instance-deployment-by-default) (scheduler mode `postgres`/`nats`, durable workqueue backend, external NATS) and keep dev/production switching config-driven
 - [ ] Verify `docker/Dockerfile` was generated (if hand-crafted, copy the template from [references/docker.md](./references/docker.md))
 - [ ] Add a `.dockerignore` to keep the build context small
 - [ ] Adapt the Dockerfile: Go version, `EXPOSE` port, `CGO_ENABLED`, config copy, `<PREFIX>_DATABASE_PATH`

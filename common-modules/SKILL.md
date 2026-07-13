@@ -126,6 +126,10 @@ type Params struct {
 
 The first connector loaded in the process also claims the unnamed default slot, so existing single-load code keeps working. See [database.md](./modules/database.md#loading-multiple-connectors) for full details and the `fxmodule.ResetClaim` test caveat.
 
+### Pick Multi-Instance-Safe Backends for Production
+
+Production runs multiple replicas. Two modules in this library are **single-node only**: `scheduler` `mode = "gorm"` (every replica fires every job) and the embedded `nats_jetstream_server` (development / single-node tool). With more than one replica, use `scheduler` `mode = "postgres"` or `"nats"`, an external NATS cluster via `nats_connector`, `postgres_connector` instead of `sqlite_connector`, and `redis_connector` for cross-instance shared state. Full decision table: [root skill § Design for Multi-Instance Deployment by Default](../SKILL.md#design-for-multi-instance-deployment-by-default).
+
 ---
 
 ## Quick Start

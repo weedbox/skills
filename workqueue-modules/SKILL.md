@@ -148,6 +148,7 @@ defer sub.Stop(context.Background())
 
 Decision shortcuts:
 
+- **Multiple replicas in production** → any backend except `memory_workqueue`; `gorm_workqueue`, `postgres_workqueue`, and `nats_workqueue` all support competing consumers across processes (see the [multi-instance rule](../SKILL.md#design-for-multi-instance-deployment-by-default))
 - **SQLite / single process** → `gorm_workqueue` (local enqueues wake workers immediately; scheduled tasks fire on time)
 - **Already on PostgreSQL** → `postgres_workqueue` (same table layout as `gorm_workqueue`; switching later needs no data migration)
 - **Already running NATS** or need high volume → `nats_workqueue`

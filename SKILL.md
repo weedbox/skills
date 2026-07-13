@@ -8,11 +8,13 @@ description: |
   Weedbox framework development skills for building Go applications and modules.
   Use when: creating weedbox application, developing weedbox module, building weedbox package,
   working with weedbox project, using Uber Fx dependency injection, integrating common-modules,
-  setting up Go microservices with weedbox, or any weedbox-based development.
+  setting up Go microservices with weedbox, deploying multiple instances or scaling horizontally,
+  or any weedbox-based development.
   Keywords: weedbox, weedbox app, weedbox module, weedbox package, uber fx, go application,
   microservice, user management, authentication, RBAC, login, permission, access control,
   Go module, JWT, refresh token, role, middleware, REST API, HTTP server, database, GORM,
-  workqueue, task queue, job queue, background job, delayed task, retry, dead letter queue.
+  workqueue, task queue, job queue, background job, delayed task, retry, dead letter queue,
+  multi-instance, horizontal scaling, replicas, stateless, high availability, production deployment.
 ---
 
 # Weedbox Skills
@@ -72,6 +74,29 @@ When user requests to "add XXX feature/module", check existing libraries first:
 - `postgres_workqueue` - PostgreSQL-native backend (SKIP LOCKED + LISTEN/NOTIFY)
 - `nats_workqueue` - NATS JetStream backend (push-based, replicated)
 - `workqueuetest` - Conformance test suite for backends
+
+### Design for Multi-Instance Deployment by Default
+
+Weedbox applications MUST assume production runs **multiple instances** (horizontal scaling). Only development and tests may assume a single process. Keep application code **backend-agnostic** (inject interfaces) so dev and production differ only in configuration and module wiring — never in business logic.
+
+| Concern | Dev / test (single instance OK) | Production (multi-instance) | Switching cost |
+|---------|--------------------------------|------------------------------|----------------|
+| Database | `sqlite_connector` | `postgres_connector` | Module line only — both provide `database.DatabaseConnector` |
+| Scheduled jobs | `scheduler` `mode = "gorm"` | `scheduler` `mode = "postgres"` or `"nats"` | Config only — identical API in all modes |
+| Background tasks | `memory_workqueue` or `gorm_workqueue` | `gorm_workqueue` / `postgres_workqueue` / `nats_workqueue` | Module line only — all provide `workqueue.WorkQueue` |
+| Messaging | `nats_jetstream_server` (embedded) + `nats_connector` | External NATS cluster + `nats_connector` | Config only — disable the embedded server, change `nats.host` |
+| Cross-instance cache / shared state | — | `redis_connector` | Never use process memory as source of truth |
+| Auth / sessions | `auth` (JWT + refresh tokens in DB) | Same — stateless by design | None |
+| Lifecycle / health | `daemon` + `healthcheck_apis` | Same — per-instance by design | None |
+
+Hard rules:
+
+1. **Never run `scheduler` `gorm` mode or `memory_workqueue` with more than one replica** — `gorm` mode fires every job on every replica; `memory_workqueue` is invisible to other processes.
+2. **Never keep coordination state (locks, counters, dedup sets, sessions) in process memory** — put it in the database, Redis, or NATS.
+3. **Write idempotent handlers** — scheduler and workqueue backends deliver at-least-once; a duplicate execution must be harmless.
+4. **Already on PostgreSQL? Prefer the PostgreSQL-backed modes** (`scheduler` `mode = "postgres"`, `postgres_workqueue`) — multi-instance safety with no extra infrastructure.
+
+Details: [project-dev § Multi-Instance Deployment](./project-dev/SKILL.md#multi-instance-deployment) for config-driven switching, [module-dev § Multi-Instance Safety](./module-dev/SKILL.md#multi-instance-safety) for rules when writing custom modules.
 
 ---
 

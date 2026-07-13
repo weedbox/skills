@@ -14,7 +14,8 @@ description: |
   Keywords: weedbox module, weedbox package, uber fx, dependency injection, module development,
   OnStart, OnStop, Params, fx.Invoke, fx.Provide, lifecycle hooks,
   create module, new module, custom module, Go module, weedbox generic, module skills,
-  fxmodule, InterfaceModule, connector module, swappable implementation, named instance.
+  fxmodule, InterfaceModule, connector module, swappable implementation, named instance,
+  multi-instance, stateless module, idempotent handler, horizontal scaling, replicas.
 ---
 
 # Weedbox Module Development
@@ -31,6 +32,7 @@ This skill helps develop modules using the weedbox framework with Uber FX depend
 - [Configuration Management](#configuration-management)
 - [Database Models](#database-models)
 - [Error Handling](#error-handling) / [Event Handling](#event-handling)
+- [Multi-Instance Safety](#multi-instance-safety)
 - [Registering Module](#registering-module) / [Best Practices](#best-practices) / [Module Checklist](#module-checklist)
 - [Module Skills](#module-skills)
 - [Related Documentation](#related-documentation)
@@ -344,6 +346,18 @@ consumer := event_manager.NewWorkQueueConsumer(
 )
 ```
 
+## Multi-Instance Safety
+
+Assume every module runs as **N replicas** in production (see the [root skill rule](../SKILL.md#design-for-multi-instance-deployment-by-default)). When writing a module:
+
+1. **No in-process source of truth** — locks, counters, dedup sets, and sessions live in the database, Redis, or NATS; process memory is at most a cache.
+2. **No bare `time.Ticker` / `time.AfterFunc` for business schedules** — every replica would fire independently. Use the `scheduler` module; its `postgres` and `nats` modes deliver each tick to exactly one replica.
+3. **Distribute background work via `workqueue.WorkQueue`** — competing consumers across replicas — instead of a goroutine polling a table that every replica would race on.
+4. **Write idempotent handlers** — scheduler and workqueue deliveries are at-least-once; a redelivered task must be harmless (guard with a unique key or a state check in the database).
+5. **In-memory caches need an invalidation story** — a write on replica A must not leave stale reads on replica B indefinitely; prefer `redis_connector` or short TTLs.
+
+Per-instance concerns (HTTP handlers, connection pools, logging, health status) need no coordination.
+
 ## Registering Module
 
 ```go
@@ -364,6 +378,7 @@ func loadModules() ([]fx.Option, error) {
 4. **Lifecycle**: Initialize in `OnStart`, cleanup in `OnStop`
 5. **Dependencies**: Declare all dependencies in `Params` struct
 6. **Errors**: Use module-specific error code ranges
+7. **Multi-instance**: Assume N replicas — see [Multi-Instance Safety](#multi-instance-safety)
 
 ## Module Checklist
 
@@ -374,6 +389,7 @@ func loadModules() ([]fx.Option, error) {
 - [ ] Set default configurations with Viper
 - [ ] Define data models if needed
 - [ ] Add error codes in appropriate range
+- [ ] Verify multi-instance safety: no in-process coordination state, no bare timers for business schedules, idempotent handlers
 - [ ] Register in `modules.go`
 - [ ] Add tests
 
