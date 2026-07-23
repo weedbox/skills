@@ -11,6 +11,8 @@ description: |
   message queues, caching, email sending, scheduled jobs, API documentation.
   Keywords: common-modules, weedbox module, configs, logger, http_server, database, postgres, sqlite,
   nats, jetstream, redis, mailer, healthcheck, daemon, swagger, openapi, Uber Fx modules,
+  lifecycle, PostStart, PreStop, post-start hook, pre-stop hook, after all modules start,
+  run after startup, before shutdown, startup task, warmup, drain,
   scheduler, job scheduler, cron job, scheduled task, recurring job, interval schedule,
   DailySchedule, ScheduleBuilder, JetStream scheduled delivery, EnsureJob, SubmitJob,
   HTTP, REST, API server, Go database, message queue, GORM, Gin, Viper, TOML, CORS,
@@ -32,6 +34,7 @@ This skill provides detailed usage instructions for all modules in `github.com/w
 | `configs` | Configuration management with Viper (TOML, environment variables) | [configs.md](./modules/configs.md) |
 | `logger` | Zap-based structured logging with debug mode | [logger.md](./modules/logger.md) |
 | `daemon` | Service lifecycle management with ready/health status | [daemon.md](./modules/daemon.md) |
+| `lifecycle` | PostStart/PreStop phases — hooks after all modules start / before any module stops | [lifecycle.md](./modules/lifecycle.md) |
 
 ### HTTP
 
@@ -206,9 +209,9 @@ Modules should be loaded in three phases:
 |-------|---------|---------|
 | **1. Preload** | Configuration, logging, embedded infrastructure | `configs`, `logger`, `nats_jetstream_server` (must be running before `nats_connector` connects) |
 | **2. Load** | Application modules | `http_server`, `swagger`, `healthcheck_apis`, `database`, `nats_connector`, `scheduler`, `redis_connector`, `mailer`, custom modules |
-| **3. After** | Lifecycle management | `daemon` (must be last) |
+| **3. After** | Lifecycle management | `lifecycle` (optional, before `daemon`), `daemon` (must be last) |
 
-**Important**: The `daemon` module must be placed **last** because it marks the service as ready after all other modules initialize.
+**Important**: The `daemon` module must be placed **last** because it marks the service as ready after all other modules initialize. When post-start / pre-stop hooks are needed, place `lifecycle` right before `daemon` so readiness flips only after the PostStart phase completes — see [lifecycle.md](./modules/lifecycle.md).
 
 ---
 

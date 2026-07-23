@@ -195,6 +195,9 @@ func loadModules() ([]fx.Option, error) {
 // afterModules - Phase 3: Daemon and lifecycle
 func afterModules() ([]fx.Option, error) {
     modules := []fx.Option{
+        // Optional: lifecycle before daemon, when modules need PostStart /
+        // PreStop hooks (run after all modules start / before any stops)
+        lifecycle.Module("lifecycle"),
         daemon.Module("daemon"),
     }
     return modules, nil
@@ -207,7 +210,7 @@ func afterModules() ([]fx.Option, error) {
 |-------|----------|---------|-----------------|
 | 1 | `preloadModules()` | Configuration and logging setup | `configs`, `logger` |
 | 2 | `loadModules()` | Application business modules | Custom modules |
-| 3 | `afterModules()` | Lifecycle and daemon management | `daemon` |
+| 3 | `afterModules()` | Lifecycle and daemon management | `lifecycle` (optional, before `daemon`), `daemon` (last) |
 
 ## Configuration
 

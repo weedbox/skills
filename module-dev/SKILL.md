@@ -277,6 +277,7 @@ Available from `github.com/weedbox/common-modules`:
 | `nats_connector` | `nats_connector.Module("scope")` | NATS client |
 | `database` | `database.DatabaseConnector` | Database interface |
 | `daemon` | `daemon.Module("scope")` | Daemon lifecycle |
+| `lifecycle` | `lifecycle.Module("scope")` | PostStart/PreStop hooks (after all modules start / before any stops) |
 | `healthcheck_apis` | `healthcheck_apis.Module("scope")` | Health endpoints |
 | `configs` | `configs.NewConfig("PREFIX")` | Configuration |
 

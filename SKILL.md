@@ -56,6 +56,7 @@ When user requests to "add XXX feature/module", check existing libraries first:
 - `redis_connector` - Cache
 - `mailer` - Email sending
 - `daemon` - Service lifecycle
+- `lifecycle` - PostStart/PreStop phases (hooks after all modules start / before any module stops)
 
 **Available modules in user-modules** (full index in [user-modules/SKILL.md](./user-modules/SKILL.md)):
 - `user` - User management (CRUD, bcrypt, UUID v7)

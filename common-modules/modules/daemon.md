@@ -30,6 +30,8 @@ The daemon module **must be placed at the end** of all other modules because:
 2. This ensures all dependencies are initialized first
 3. Health checks will return "ready" only after full initialization
 
+When the [lifecycle](./lifecycle.md) module is also loaded, place it **right before** daemon (`lifecycle.Module("lifecycle")`, then `daemon.Module("daemon")`) — daemon stays last, so readiness flips only after the PostStart phase completes.
+
 ```go
 func initModules() ([]fx.Option, error) {
     return []fx.Option{
